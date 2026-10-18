@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-export type NavItem = { href: string; label: string; soon?: string };
+/** `also` lists other paths that belong to this section, e.g. pursuit pages under Pipeline. */
+export type NavItem = { href: string; label: string; soon?: string; also?: string[] };
 
 export function AppNav({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
@@ -17,7 +18,8 @@ export function AppNav({ items }: { items: NavItem[] }) {
             </li>
           );
         }
-        const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+        const active =
+          item.href === "/" ? pathname === "/" : [item.href, ...(item.also ?? [])].some((p) => pathname.startsWith(p));
         return (
           <li key={item.href}>
             <Link

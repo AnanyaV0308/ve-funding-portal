@@ -115,7 +115,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
             </h2>
             <p className="text-sm text-ve-muted">{KNOWLEDGE_CATEGORY_LABELS[g.category].description}</p>
           </div>
-          <div className="overflow-x-auto rounded-lg border border-ve-line bg-white">
+          <div className="relative overflow-x-auto rounded-lg border border-ve-line bg-white">
             <table className="w-full min-w-[46rem] text-left text-sm">
               <caption className="sr-only">{KNOWLEDGE_CATEGORY_LABELS[g.category].name}</caption>
               <thead className="bg-ve-cream">

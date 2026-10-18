@@ -8,7 +8,7 @@ import { requireUser } from "@/lib/authz";
 const NAV: NavItem[] = [
   { href: "/", label: "This week" },
   { href: "/leads", label: "CSR leads" },
-  { href: "/pipeline", label: "Pipeline" },
+  { href: "/pipeline", label: "Pipeline", also: ["/pursuits"] },
   { href: "/calendar", label: "Awards calendar" },
   { href: "/knowledge", label: "Knowledge base" },
   { href: "/settings", label: "Settings" },
@@ -57,7 +57,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </button>
           </form>
         </header>
-        <main id="main" tabIndex={-1} className="grid content-start gap-6 px-6 py-8">
+        <main id="main" tabIndex={-1} className="grid min-w-0 grid-cols-1 content-start gap-6 px-6 py-8">
           {children}
         </main>
       </div>

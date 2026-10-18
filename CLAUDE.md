@@ -9,5 +9,7 @@
 - Brand: VE yellow is a fill behind dark text only, never text on white. Tokens are in `apps/web/src/app/globals.css`.
 - File uploads use signed upload URLs (`apps/web/src/lib/storage.ts`): the browser PUTs the file, then a server action records it. Never send file bodies through server actions (Vercel caps bodies at 4.5 MB). Only the local-disk driver exists; Supabase Storage comes with hosting.
 - Knowledge facts carry `confirmed_at` + `refresh_months`; status rules live in `packages/core/src/knowledge.ts`. Drafts must only use facts where `usableInDrafts()` is true.
+- Pipeline stages, probabilities, weighted value, stuck and due rules live in `packages/core/src/pipeline.ts`. Amounts are whole rupees in a `bigint`; parse input with `parseInr` and show it with `formatInrShort`/`formatInr`. Every stage change writes a `pursuit_stage_changes` row; lost stages need a reason.
+- Drag-and-drop always has a non-drag alternative (the board's Stage menu). Scroll containers are `relative` so `sr-only` text can't make the page scroll sideways.
 - e2e tests share one database and run with one worker; give records they create unique names.
 - Data stays in India (Supabase Mumbai, Vercel bom1, Fly bom). No LinkedIn scraping.
