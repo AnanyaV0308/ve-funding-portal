@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+/*
+ * VE brand, taken from visionempower.org: logo yellow, logo olive, charcoal text, banner cream.
+ * Yellow is only ever a fill behind dark text; yellow text on white fails WCAG contrast.
+ * Fonts: Ubuntu for text, Oswald for uppercase labels (self-hosted via @fontsource, no Google calls).
+ */
+@theme {
+  --color-ve-yellow: #f7cd4b;
+  --color-ve-yellow-soft: #fdf0c4;
+  --color-ve-olive: #514937;
+  --color-ve-charcoal: #333333;
+  --color-ve-muted: #5f5849;
+  --color-ve-cream: #fcf0d8;
+  --color-ve-paper: #fffdf8;
+  --color-ve-line: #e8dfcb;
+  --color-ve-on-yellow: #2b2619;
+
+  --color-ok: #1f7a3a;
+  --color-ok-soft: #dcf1e1;
+  --color-warn: #8a5f00;
+  --color-warn-soft: #fbecc0;
+  --color-bad: #a63a2e;
+  --color-bad-soft: #f6dcd8;
+
+  --font-sans: "Ubuntu", "Segoe UI", system-ui, sans-serif;
+  --font-label: "Oswald", "Arial Narrow", "Segoe UI", sans-serif;
+}
+
+@layer base {
+  html {
+    color: var(--color-ve-charcoal);
+    background: var(--color-ve-paper);
+  }
+  body {
+    font-family: var(--font-sans);
+    line-height: 1.55;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  a {
+    color: var(--color-ve-olive);
+    text-decoration-color: var(--color-ve-yellow);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-ve-olive);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition: none !important;
+      animation: none !important;
+    }
+  }
+}
+
+@layer components {
+  .label {
+    font-family: var(--font-label);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.375rem;
+    padding: 0.55rem 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .btn-primary {
+    background: var(--color-ve-yellow);
+    color: var(--color-ve-on-yellow);
+  }
+  .btn-primary:hover {
+    background: #f2c12e;
+  }
+  .btn-secondary {
+    background: white;
+    color: var(--color-ve-olive);
+    border-color: var(--color-ve-line);
+  }
+  .btn-secondary:hover {
+    background: var(--color-ve-cream);
+  }
+}
