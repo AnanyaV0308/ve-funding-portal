@@ -176,11 +176,11 @@ test("This week shows what's due, what has gone quiet and my pursuits", async ({
   await expectNoAxeViolations(page);
 });
 
-test("the board scrolls inside itself, so the page never scrolls sideways", async ({ page }) => {
+test("wide tables scroll inside themselves, so the page never scrolls sideways", async ({ page }) => {
   await signInAs(page, "Associate");
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
-    for (const path of ["/pipeline", "/pipeline?view=table", "/"]) {
+    for (const path of ["/pipeline", "/pipeline?view=table", "/", "/leads", "/leads/import"]) {
       await page.goto(path);
       expect(await page.evaluate(() => document.documentElement.scrollWidth), `${path} at ${width}px`).toBeLessThanOrEqual(width);
     }

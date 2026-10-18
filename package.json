@@ -12,6 +12,6 @@
     "test:e2e": "pnpm --filter web test:e2e",
     "db:generate": "pnpm --filter @ve/db generate",
     "db:migrate": "pnpm --filter @ve/db migrate",
-    "db:seed": "pnpm --filter @ve/db seed"
+    "db:seed": "pnpm --filter @ve/db seed && pnpm --filter @ve/ingest seed-demo"
   }
 }

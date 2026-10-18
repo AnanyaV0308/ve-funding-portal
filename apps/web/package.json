@@ -17,6 +17,7 @@
     "@fontsource/ubuntu": "^5.3.0",
     "@ve/core": "workspace:*",
     "@ve/db": "workspace:*",
+    "@ve/ingest": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.2",
     "next-auth": "5.0.0-beta.32",

@@ -1,0 +1,56 @@
+"Example data for local development only: fictional companies and CINs, not real National CSR Portal records"
+CIN,Company Name,Financial Year,Prescribed CSR Expenditure (INR Cr.),Amount Spent (INR Cr.),Development Sector,State,Project Name
+U32109KA2008PTC045671,Example: Deccan Semiconductors India,2022-23,6.5,3.2,Education,Karnataka,STEM labs in government schools
+U32109KA2008PTC045671,Example: Deccan Semiconductors India,2022-23,6.5,0.8,Differently Abled,Karnataka,Assistive technology for blind students
+U32109KA2008PTC045671,Example: Deccan Semiconductors India,2022-23,6.5,2.0,Health Care,Maharashtra,Mobile health vans
+U32109KA2008PTC045671,Example: Deccan Semiconductors India,2023-24,11.0,5.5,Education,Karnataka,STEM labs in government schools
+U32109KA2008PTC045671,Example: Deccan Semiconductors India,2023-24,11.0,1.2,Differently Abled,PAN INDIA,Assistive technology for blind students
+U32109KA2008PTC045671,Example: Deccan Semiconductors India,2023-24,11.0,2.5,Health Care,Maharashtra,Mobile health vans
+U32109KA2008PTC045671,Example: Deccan Semiconductors India,2023-24,11.0,1.0,Environmental Sustainability,Karnataka,Lake restoration
+L34300TN1985PLC011582,Example: Kaveri Auto Components,2022-23,4.2,2.5,Education,Tamil Nadu,School libraries
+L34300TN1985PLC011582,Example: Kaveri Auto Components,2022-23,4.2,1.5,Rural Development Projects,Tamil Nadu,Village roads
+L34300TN1985PLC011582,Example: Kaveri Auto Components,2023-24,6.8,3.0,Education,Tamil Nadu,School libraries
+L34300TN1985PLC011582,Example: Kaveri Auto Components,2023-24,6.8,1.8,Vocational Skills,Maharashtra,Auto mechanic training
+L34300TN1985PLC011582,Example: Kaveri Auto Components,2023-24,6.8,2.0,Rural Development Projects,Tamil Nadu,Village roads
+L27100GJ1990PLC013456,Example: Narmada Steel,2022-23,10.5,8.0,Health Care,Gujarat,District hospital wing
+L27100GJ1990PLC013456,Example: Narmada Steel,2022-23,10.5,2.0,Education,Gujarat,Scholarships
+L27100GJ1990PLC013456,Example: Narmada Steel,2023-24,12.0,9.0,Health Care,Gujarat,District hospital wing
+L27100GJ1990PLC013456,Example: Narmada Steel,2023-24,12.0,2.5,Education,Odisha,Science labs
+L27100GJ1990PLC013456,Example: Narmada Steel,2023-24,12.0,0.6,Special Education,Odisha,Resource rooms for children with disabilities
+L40100MH1995PLC089123,Example: Konkan Power,2022-23,15.0,10.0,Environmental Sustainability,Maharashtra,Mangrove planting
+L40100MH1995PLC089123,Example: Konkan Power,2022-23,15.0,3.0,Education,Maharashtra,Digital classrooms
+L40100MH1995PLC089123,Example: Konkan Power,2022-23,15.0,2.0,Livelihood Enhancement Projects,Kerala,Fisherwomen collectives
+L40100MH1995PLC089123,Example: Konkan Power,2023-24,15.0,10.0,Environmental Sustainability,Maharashtra,Mangrove planting
+L40100MH1995PLC089123,Example: Konkan Power,2023-24,15.0,3.0,Education,Maharashtra,Digital classrooms
+L40100MH1995PLC089123,Example: Konkan Power,2023-24,15.0,2.0,Livelihood Enhancement Projects,Kerala,Fisherwomen collectives
+U15400KA2001PTC028765,Example: Malnad Foods,2022-23,0.9,0.9,Education,Karnataka,Midday meal kitchens
+U15400KA2001PTC028765,Example: Malnad Foods,2023-24,1.8,1.1,Education,Karnataka,Midday meal kitchens
+U15400KA2001PTC028765,Example: Malnad Foods,2023-24,1.8,0.3,Special Education,Karnataka,Braille books
+U15400KA2001PTC028765,Example: Malnad Foods,2023-24,1.8,0.4,Health Care,Karnataka,Eye camps
+,Example: Sahyadri Cooperative Bank,2022-23,,1.2,Education,Maharashtra,Digital literacy for women
+,Example: Sahyadri Cooperative Bank,2022-23,,0.9,Livelihood Enhancement Projects,Maharashtra,Self-help groups
+L26940MP1988PLC004321,Example: Vindhya Cements,2023-24,7.5,4.0,Rural Development Projects,Madhya Pradesh,Check dams
+L26940MP1988PLC004321,Example: Vindhya Cements,2023-24,7.5,3.0,Health Care,Madhya Pradesh,Primary health centres
+U17110TN2012PTC086543,Example: Coromandel Textiles,2022-23,,0.03,Education,Tamil Nadu,School uniforms
+U17110TN2012PTC086543,Example: Coromandel Textiles,2023-24,,0.04,Education,Tamil Nadu,School uniforms
+L17232WB1946PLC013579,Example: Hooghly Jute Mills,2022-23,3.0,1.5,Education,West Bengal,Evening schools
+L17232WB1946PLC013579,Example: Hooghly Jute Mills,2022-23,3.0,0.5,Differently Abled,West Bengal,Hearing aids
+L17232WB1946PLC013579,Example: Hooghly Jute Mills,2022-23,3.0,1.0,Sanitation,West Bengal,School toilets
+L17232WB1946PLC013579,Example: Hooghly Jute Mills,2023-24,3.0,1.5,Education,West Bengal,Evening schools
+L17232WB1946PLC013579,Example: Hooghly Jute Mills,2023-24,3.0,0.5,Differently Abled,West Bengal,Hearing aids
+L17232WB1946PLC013579,Example: Hooghly Jute Mills,2023-24,3.0,1.0,Sanitation,West Bengal,School toilets
+U51229KL2005PTC018642,Example: Malabar Spices Exports,2022-23,0.8,0.6,Education,Kerala,Coastal school support
+U51229KL2005PTC018642,Example: Malabar Spices Exports,2022-23,0.8,0.2,Special Education,Kerala,Special educators
+U51229KL2005PTC018642,Example: Malabar Spices Exports,2023-24,0.8,0.6,Education,Kerala,Coastal school support
+U51229KL2005PTC018642,Example: Malabar Spices Exports,2023-24,0.8,0.2,Special Education,Kerala,Special educators
+L24230UP1992PLC014208,Example: Ganga Pharma,2022-23,7.0,6.0,Health Care,Uttar Pradesh,TB screening
+L24230UP1992PLC014208,Example: Ganga Pharma,2022-23,7.0,1.0,Education,PAN INDIA,Pharmacy scholarships
+L24230UP1992PLC014208,Example: Ganga Pharma,2023-24,7.0,6.0,Health Care,Uttar Pradesh,TB screening
+L24230UP1992PLC014208,Example: Ganga Pharma,2023-24,7.0,1.0,Education,PAN INDIA,Pharmacy scholarships
+L13100OR1977PLC000765,Example: Kalinga Minerals,2022-23,6.0,3.0,Education,Odisha,Residential schools
+L13100OR1977PLC000765,Example: Kalinga Minerals,2022-23,6.0,2.0,Vocational Skills,Odisha,Mining skills centre
+L13100OR1977PLC000765,Example: Kalinga Minerals,2022-23,6.0,1.0,Health Care,Odisha,District hospital support
+L13100OR1977PLC000765,Example: Kalinga Minerals,2023-24,8.5,4.0,Education,Odisha,Residential schools
+L13100OR1977PLC000765,Example: Kalinga Minerals,2023-24,8.5,1.0,Differently Abled,Odisha,Inclusive classrooms
+L13100OR1977PLC000765,Example: Kalinga Minerals,2023-24,8.5,2.0,Vocational Skills,Odisha,Mining skills centre
+L13100OR1977PLC000765,Example: Kalinga Minerals,2023-24,8.5,1.5,Health Care,Odisha,District hospital support

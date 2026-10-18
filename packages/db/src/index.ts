@@ -16,3 +16,5 @@ const sql = (globalForDb.veSql ??= postgres(process.env.DATABASE_URL ?? "postgre
 
 export const db = drizzle({ client: sql, schema });
 export type Db = typeof db;
+
+export * from "./settings";

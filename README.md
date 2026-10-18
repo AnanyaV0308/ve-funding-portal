@@ -6,6 +6,18 @@ This repository holds **Phase 1**: the knowledge base, ranked CSR leads, the pip
 
 ## What's here so far
 
+### Step 4: CSR leads
+
+- **Import CSR data** reads a company-wise or project-wise CSV downloaded from the National CSR Portal (csr.gov.in). It finds the heading row even under title rows, works out whether amounts are in crore, lakh or rupees, and lists any rows it skipped and why. Companies are matched on their CIN, then on name, and a year in the file replaces what was stored for that year
+- The import runs in the **worker**, which checks for waiting imports every minute. Run `pnpm --filter @ve/ingest run-pending` to process them straight away without the worker
+- **Eligibility** for every company: **Eligible** (an Indian entity that reported CSR in both of the last two years and spends above VE's floor), **Needs check** (no valid CIN, or only one recent year) or **Not eligible** (foreign, or below the floor). VE has no FCRA registration, so foreign companies are always not eligible
+- A **fit score** out of 100 in six parts: cause (share of CSR on education, skills and disability), peer NGOs it funds, likely grant size, spend in VE's states, a warm path, and timing (spend growing or money left unspent). Each part shows its points and the reason
+- **CSR leads**: companies ranked by fit, filtered by eligibility, state, cause, likely grant and "new in the last 7 days"
+- A **company page** with eligibility, the fit score broken down, CSR spend by year with the file it came from, the sector and state split, the NGOs it funds, and a warm-path note. Adding an NGO or a warm path rescores the company at once. **Start a pursuit** opens a new pursuit for that company
+- **Settings → Fit score** (admins): the six weights, the floor (₹5 lakh to start), the states where VE works and the list of peer NGOs. Saving rescores every company
+- **This week** lists eligible companies added in the last 7 days
+- `pnpm db:seed` imports a fictional example file (`packages/ingest/fixtures/csr-portal-example.csv`, every company named "Example: ...") when no CSR data has been loaded
+
 ### Step 3: pipeline tracker
 
 - **Pipeline** with two tracks: **Relationships** (CSR and philanthropy conversations, from Identified to Funds received) and **Applications** (awards and grant calls, from Spotted to Won). Each stage has a default chance of winning, and the weighted value is the ask times that chance
@@ -37,9 +49,10 @@ This repository holds **Phase 1**: the knowledge base, ranked CSR leads, the pip
 
 ```
 apps/web        Next.js app: screens and server actions
-apps/worker     Background jobs (pg-boss): crawls, scoring, reminders
-packages/core   Business rules with unit tests: roles, knowledge freshness, pipeline stages and money (eligibility and fit score next)
+apps/worker     Background jobs (pg-boss): imports, rescoring, and later reminders
+packages/core   Business rules with unit tests: roles, knowledge freshness, pipeline stages and money, CSR eligibility and fit score
 packages/db     Drizzle schema, migrations and seed data
+packages/ingest Data imports (National CSR Portal CSV) and scoring, shared by the worker, the web app and scripts
 ```
 
 ## Run it locally
@@ -51,11 +64,19 @@ pnpm install
 cp .env.example .env              # then set AUTH_SECRET: openssl rand -base64 32
 docker compose up -d              # local Postgres 16
 pnpm db:migrate
-pnpm db:seed                      # five demo users, starting facts and example pursuits
+pnpm db:seed                      # demo users, starting facts, example pursuits and example CSR data
 pnpm dev                          # http://localhost:3000
 ```
 
-Sign in with **Continue as demo user** and pick a role. Uploaded files are saved under `apps/web/.data/uploads`. Run the worker in a second terminal with `pnpm worker`.
+Sign in with **Continue as demo user** and pick a role. Uploaded files are saved under `apps/web/.data/uploads`. Run the worker in a second terminal with `pnpm worker`; it processes CSR imports.
+
+## Importing National CSR Portal data
+
+1. On csr.gov.in, download the company-wise or project-wise CSR data. If it comes as Excel, save it as CSV.
+2. In the app, go to **CSR leads → Import CSR data**, choose the file and press **Upload and import**.
+3. The worker picks it up within a minute (or run `pnpm --filter @ve/ingest run-pending`). **Recent imports** shows how many companies were read and which rows were skipped.
+
+The file needs a company name, financial year and amount spent column. CIN, prescribed amount, development sector, state and project columns are used when present.
 
 ## Tests
 

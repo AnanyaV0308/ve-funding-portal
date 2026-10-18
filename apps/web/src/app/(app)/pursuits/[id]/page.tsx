@@ -73,7 +73,8 @@ export default async function PursuitPage({ params, searchParams }: { params: Pr
       <header className="grid gap-1">
         <h1 className="text-3xl font-bold text-ve-charcoal">{p.title}</h1>
         <p className="text-ve-muted">
-          {p.funder.name} · {FUNDER_TYPE_LABELS[p.funder.type]}
+          {can(user.roles, "leads:view") ? <Link href={`/funders/${p.funder.id}`}>{p.funder.name}</Link> : p.funder.name} ·{" "}
+          {FUNDER_TYPE_LABELS[p.funder.type]}
         </p>
       </header>
 

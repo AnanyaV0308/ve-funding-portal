@@ -22,14 +22,17 @@ export function NewPursuitForm({
   people,
   defaultTrack,
   defaultOwnerId,
+  defaultFunderId,
 }: {
   funders: Option[];
   people: Option[];
   defaultTrack: Track;
   defaultOwnerId: string;
+  /** Set when someone starts a pursuit from a funder's page. */
+  defaultFunderId?: string;
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(createPursuit, null);
-  const initialFunder = funders.length ? "" : "__new";
+  const initialFunder = defaultFunderId ?? (funders.length ? "" : "__new");
   const [funderId, setFunderId] = useState(initialFunder);
   const [track, setTrack] = useState<Track>(defaultTrack);
   const err = state?.fieldErrors ?? {};
