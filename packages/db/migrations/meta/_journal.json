@@ -15,6 +15,13 @@
       "when": 1792301701363,
       "tag": "0001_clumsy_amphibian",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792303456312,
+      "tag": "0002_parched_wilson_fisk",
+      "breakpoints": true
     }
   ]
 }

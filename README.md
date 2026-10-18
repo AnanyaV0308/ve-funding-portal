@@ -6,6 +6,15 @@ This repository holds **Phase 1**: the knowledge base, ranked CSR leads, the pip
 
 ## What's here so far
 
+### Step 3: pipeline tracker
+
+- **Pipeline** with two tracks: **Relationships** (CSR and philanthropy conversations, from Identified to Funds received) and **Applications** (awards and grant calls, from Spotted to Won). Each stage has a default chance of winning, and the weighted value is the ask times that chance
+- A **board** and a **table** showing the same pursuits. Every card has a **Stage** menu and a **Move** button, so the board works with a keyboard and a screen reader; mouse users can also drag cards between columns. The page announces each move and keeps focus on the moved card
+- Moving to **Not now or lost** or **Not selected** asks for a reason and an optional date to try again
+- A **pursuit page** with the ask, owner, chance of winning (which can be set by hand), next action and due date, the full stage history, and a log of calls, meetings and notes
+- **This week**: weighted pipeline by track and by funder type, next actions overdue or due in 14 days, pursuits that haven't changed stage in more than 21 days, and your own pursuits
+- Six fictional example pursuits (funder names start with "Example:") are added by `pnpm db:seed` when the pipeline is empty, so the screens have something to show
+
 ### Step 2: knowledge base
 
 - **Facts and numbers** for VE's organisation details, impact numbers, programmes, stories, approved answers and budget templates. Each fact has a source, an as-of date, an owner and a review period
@@ -20,7 +29,7 @@ This repository holds **Phase 1**: the knowledge base, ranked CSR leads, the pip
 - Sign-in with Microsoft 365, plus a demo-user sign-in for local development only
 - Roles set by VE in Settings: Admin, Approver, Associate, Introducer and Viewer. Every write is checked on the server, and VE can never be left without an admin
 - An audit log of sign-ins and role changes
-- Placeholder screens for This week, CSR leads, Pipeline and Awards calendar, each saying which step builds it
+- Placeholder screens for This week, CSR leads, Pipeline and Awards calendar, each saying which step builds it (This week and Pipeline arrived in step 3)
 - A background worker on a Postgres-backed queue (pg-boss), currently running a heartbeat job only
 - Unit tests for the role rules, and browser tests that open every screen and run an automated WCAG 2.2 AA check
 
@@ -29,7 +38,7 @@ This repository holds **Phase 1**: the knowledge base, ranked CSR leads, the pip
 ```
 apps/web        Next.js app: screens and server actions
 apps/worker     Background jobs (pg-boss): crawls, scoring, reminders
-packages/core   Business rules with unit tests (roles today; eligibility and fit score next)
+packages/core   Business rules with unit tests: roles, knowledge freshness, pipeline stages and money (eligibility and fit score next)
 packages/db     Drizzle schema, migrations and seed data
 ```
 
@@ -42,7 +51,7 @@ pnpm install
 cp .env.example .env              # then set AUTH_SECRET: openssl rand -base64 32
 docker compose up -d              # local Postgres 16
 pnpm db:migrate
-pnpm db:seed                      # five demo users, one per role
+pnpm db:seed                      # five demo users, starting facts and example pursuits
 pnpm dev                          # http://localhost:3000
 ```
 

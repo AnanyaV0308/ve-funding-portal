@@ -7,6 +7,7 @@ import {
   type KnowledgeCategory,
 } from "@ve/core";
 import { useActionState, useEffect, useState } from "react";
+import { Field, inputClass } from "@/components/field";
 import { type FormState, saveFact } from "./actions";
 
 export type FactFormValues = {
@@ -28,28 +29,7 @@ const CONSENT_LABELS: Record<(typeof CONSENT_STATUSES)[number], string> = {
   not_given: "No consent: don't use",
 };
 
-const input = "w-full rounded-md border border-ve-line bg-white px-3 py-2";
-
-function Field({ id, label, hint, error, children }: { id: string; label: string; hint?: string; error?: string; children: React.ReactNode }) {
-  return (
-    <div className="grid gap-1">
-      <label htmlFor={id} className="font-medium">
-        {label}
-      </label>
-      {hint ? (
-        <p id={`${id}-hint`} className="text-sm text-ve-muted">
-          {hint}
-        </p>
-      ) : null}
-      {children}
-      {error ? (
-        <p id={`${id}-error`} className="text-sm text-bad">
-          {error}
-        </p>
-      ) : null}
-    </div>
-  );
-}
+const input = inputClass;
 
 export function FactForm({ values, people }: { values: FactFormValues; people: { id: string; name: string }[] }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveFact, null);
@@ -77,6 +57,7 @@ export function FactForm({ values, people }: { values: FactFormValues; people: {
 
       <Field id="category" label="Category" error={err.category}>
         <select
+          key={`category-${v("category", values.category)}`}
           id="category"
           name="category"
           className={input}
@@ -124,7 +105,7 @@ export function FactForm({ values, people }: { values: FactFormValues; people: {
 
       <div className="grid gap-5 sm:grid-cols-2">
         <Field id="ownerId" label="Owner (optional)" hint="Who keeps this up to date." error={err.ownerId}>
-          <select id="ownerId" name="ownerId" defaultValue={v("ownerId", values.ownerId)} className={input} aria-describedby={describe("ownerId", true)}>
+          <select key={`ownerId-${v("ownerId", values.ownerId)}`} id="ownerId" name="ownerId" defaultValue={v("ownerId", values.ownerId)} className={input} aria-describedby={describe("ownerId", true)}>
             <option value="">No owner yet</option>
             {people.map((p) => (
               <option key={p.id} value={p.id}>
@@ -135,7 +116,7 @@ export function FactForm({ values, people }: { values: FactFormValues; people: {
         </Field>
         {category === "story" ? (
           <Field id="consent" label="Consent" hint="Stories are only used with consent." error={err.consent}>
-            <select id="consent" name="consent" defaultValue={v("consent", values.consent ?? "pending")} className={input} aria-describedby={describe("consent", true)}>
+            <select key={`consent-${v("consent", values.consent ?? "pending")}`} id="consent" name="consent" defaultValue={v("consent", values.consent ?? "pending")} className={input} aria-describedby={describe("consent", true)}>
               {CONSENT_STATUSES.map((c) => (
                 <option key={c} value={c}>
                   {CONSENT_LABELS[c]}

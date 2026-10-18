@@ -1,6 +1,16 @@
-import { CONSENT_STATUSES, DOCUMENT_KINDS, KNOWLEDGE_CATEGORIES, ROLES } from "@ve/core";
-import { relations } from "drizzle-orm";
 import {
+  ACTIVITY_KINDS,
+  ALL_STAGES,
+  CONSENT_STATUSES,
+  DOCUMENT_KINDS,
+  FUNDER_TYPES,
+  KNOWLEDGE_CATEGORIES,
+  ROLES,
+  TRACKS,
+} from "@ve/core";
+import { relations, sql } from "drizzle-orm";
+import {
+  bigint,
   date,
   index,
   integer,
@@ -161,6 +171,89 @@ export const documentVersions = pgTable(
   (t) => [uniqueIndex("document_versions_doc_version_idx").on(t.documentId, t.version)],
 );
 
+// ---------------------------------------------------------------------------
+// Pipeline: funders and VE's pursuit of each one, stage by stage.
+// ---------------------------------------------------------------------------
+
+export const funderTypeEnum = pgEnum("funder_type", FUNDER_TYPES);
+export const trackEnum = pgEnum("track", TRACKS);
+export const stageEnum = pgEnum("stage", ALL_STAGES);
+export const activityKindEnum = pgEnum("activity_kind", ACTIVITY_KINDS);
+
+/** An organisation or person who can give. Step 4 adds the Indian entity, CIN, eligibility and fit. */
+export const funders = pgTable(
+  "funders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    type: funderTypeEnum("type").notNull(),
+    website: text("website"),
+    notes: text("notes"),
+    createdAt: createdAt(),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  (t) => [uniqueIndex("funders_name_idx").on(sql`lower(${t.name})`)],
+);
+
+export const pursuits = pgTable(
+  "pursuits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    funderId: uuid("funder_id")
+      .notNull()
+      .references(() => funders.id, { onDelete: "restrict" }),
+    title: text("title").notNull(),
+    track: trackEnum("track").notNull(),
+    stage: stageEnum("stage").notNull(),
+    stageChangedAt: timestamp("stage_changed_at", { withTimezone: true }).notNull().defaultNow(),
+    ownerId: text("owner_id").references(() => users.id, { onDelete: "set null" }),
+    /** Whole rupees. */
+    askAmount: bigint("ask_amount", { mode: "number" }),
+    /** Set only when a person overrides the stage's default probability. */
+    probabilityOverride: integer("probability_override"),
+    nextAction: text("next_action"),
+    nextActionDue: date("next_action_due", { mode: "string" }),
+    closedReason: text("closed_reason"),
+    revisitOn: date("revisit_on", { mode: "string" }),
+    createdAt: createdAt(),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("pursuits_track_stage_idx").on(t.track, t.stage), index("pursuits_owner_idx").on(t.ownerId)],
+);
+
+export const pursuitStageChanges = pgTable(
+  "pursuit_stage_changes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pursuitId: uuid("pursuit_id")
+      .notNull()
+      .references(() => pursuits.id, { onDelete: "cascade" }),
+    fromStage: stageEnum("from_stage"),
+    toStage: stageEnum("to_stage").notNull(),
+    note: text("note"),
+    changedAt: createdAt(),
+    changedBy: text("changed_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  (t) => [index("pursuit_stage_changes_pursuit_idx").on(t.pursuitId, t.changedAt)],
+);
+
+export const pursuitActivities = pgTable(
+  "pursuit_activities",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pursuitId: uuid("pursuit_id")
+      .notNull()
+      .references(() => pursuits.id, { onDelete: "cascade" }),
+    kind: activityKindEnum("kind").notNull(),
+    summary: text("summary").notNull(),
+    occurredOn: date("occurred_on", { mode: "string" }).notNull(),
+    createdAt: createdAt(),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  (t) => [index("pursuit_activities_pursuit_idx").on(t.pursuitId, t.occurredOn)],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   roles: many(userRoles, { relationName: "holder" }),
 }));
@@ -181,4 +274,25 @@ export const documentsRelations = relations(documents, ({ many }) => ({
 export const documentVersionsRelations = relations(documentVersions, ({ one }) => ({
   document: one(documents, { fields: [documentVersions.documentId], references: [documents.id] }),
   uploader: one(users, { fields: [documentVersions.uploadedBy], references: [users.id] }),
+}));
+
+export const fundersRelations = relations(funders, ({ many }) => ({
+  pursuits: many(pursuits),
+}));
+
+export const pursuitsRelations = relations(pursuits, ({ one, many }) => ({
+  funder: one(funders, { fields: [pursuits.funderId], references: [funders.id] }),
+  owner: one(users, { fields: [pursuits.ownerId], references: [users.id], relationName: "pursuitOwner" }),
+  stageChanges: many(pursuitStageChanges),
+  activities: many(pursuitActivities),
+}));
+
+export const pursuitStageChangesRelations = relations(pursuitStageChanges, ({ one }) => ({
+  pursuit: one(pursuits, { fields: [pursuitStageChanges.pursuitId], references: [pursuits.id] }),
+  changer: one(users, { fields: [pursuitStageChanges.changedBy], references: [users.id], relationName: "stageChanger" }),
+}));
+
+export const pursuitActivitiesRelations = relations(pursuitActivities, ({ one }) => ({
+  pursuit: one(pursuits, { fields: [pursuitActivities.pursuitId], references: [pursuits.id] }),
+  author: one(users, { fields: [pursuitActivities.createdBy], references: [users.id], relationName: "activityAuthor" }),
 }));
