@@ -7,4 +7,7 @@
 - Business rules (roles, eligibility, fit score) live in `packages/core` as pure functions with tests, not in components or AI prompts.
 - Accessibility is a requirement: VE has blind team members using screen readers. Keep landmarks, labels and `aria-current`, offer non-drag alternatives, and keep `pnpm test:e2e` (axe, WCAG 2.2 AA) passing.
 - Brand: VE yellow is a fill behind dark text only, never text on white. Tokens are in `apps/web/src/app/globals.css`.
+- File uploads use signed upload URLs (`apps/web/src/lib/storage.ts`): the browser PUTs the file, then a server action records it. Never send file bodies through server actions (Vercel caps bodies at 4.5 MB). Only the local-disk driver exists; Supabase Storage comes with hosting.
+- Knowledge facts carry `confirmed_at` + `refresh_months`; status rules live in `packages/core/src/knowledge.ts`. Drafts must only use facts where `usableInDrafts()` is true.
+- e2e tests share one database and run with one worker; give records they create unique names.
 - Data stays in India (Supabase Mumbai, Vercel bom1, Fly bom). No LinkedIn scraping.
