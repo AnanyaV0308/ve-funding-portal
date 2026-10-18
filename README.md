@@ -6,6 +6,18 @@ This repository holds **Phase 1**: the knowledge base, ranked CSR leads, the pip
 
 ## What's here so far
 
+### Step 5: awards calendar, reminders and the weekly digest
+
+- **Awards calendar** of award, grant and call-for-proposals deadlines, as a **list** (open now, opening later, dates not announced, closed) and a **month** grid with the same dates listed underneath for screen readers. Filters for kind, eligibility, skipped and closed calls
+- Each **call page** has the deadline, opening date, prize or grant, the organiser's link and an **eligibility checklist**: registration type, years of operation, no FCRA needed, geography, budget size and theme. Any "VE doesn't meet it" marks the call **Not eligible**; anything unsure or unchecked leaves it at **Needs check**; all met makes it **Eligible**
+- **Start an application** opens an Applications pursuit for the call, owned by whoever pressed it, with the deadline as its due date. **Skip this call** records why VE isn't applying and stops its reminders; it can be undone
+- **Deadline reminders** by email 30, 14, 7 and 2 days before each deadline, to the owner of the application, or to everyone who works on the calendar while nobody owns one. A call added late gets the nearest reminder straight away. Reminders stop once the application is submitted, and each one goes only once
+- A **weekly digest** on Monday mornings: new high-fit CSR leads, deadlines in the next two weeks, pursuits stuck for more than 21 days and wins. An empty week sends nothing
+- **Settings → Emails to me**, for everyone, to turn the digest and reminders off. Admins also see **Emails sent**
+- Until VE has an email service account, emails are saved as files in `apps/web/.data/outbox` instead of being sent
+- **This week** lists award and grant deadlines in the next 14 days
+- `pnpm db:seed` adds five real yearly awards from the PRD (DEPwD National Awards, NCPEDP-Mphasis Universal Design Awards, Infosys Foundation Aarohan, Zero Project, QS Reimagine Education) without dates, because this year's haven't been confirmed, plus five fictional "Example:" calls with dates so the calendar has something to show
+
 ### Step 4: CSR leads
 
 - **Import CSR data** reads a company-wise or project-wise CSV downloaded from the National CSR Portal (csr.gov.in). It finds the heading row even under title rows, works out whether amounts are in crore, lakh or rupees, and lists any rows it skipped and why. Companies are matched on their CIN, then on name, and a year in the file replaces what was stored for that year
@@ -42,17 +54,18 @@ This repository holds **Phase 1**: the knowledge base, ranked CSR leads, the pip
 - Roles set by VE in Settings: Admin, Approver, Associate, Introducer and Viewer. Every write is checked on the server, and VE can never be left without an admin
 - An audit log of sign-ins and role changes
 - Placeholder screens for This week, CSR leads, Pipeline and Awards calendar, each saying which step builds it (This week and Pipeline arrived in step 3)
-- A background worker on a Postgres-backed queue (pg-boss), currently running a heartbeat job only
+- A background worker on a Postgres-backed queue (pg-boss)
 - Unit tests for the role rules, and browser tests that open every screen and run an automated WCAG 2.2 AA check
 
 ## Layout
 
 ```
 apps/web        Next.js app: screens and server actions
-apps/worker     Background jobs (pg-boss): imports, rescoring, and later reminders
-packages/core   Business rules with unit tests: roles, knowledge freshness, pipeline stages and money, CSR eligibility and fit score
+apps/worker     Background jobs (pg-boss): imports, rescoring, deadline reminders and the weekly digest
+packages/core   Business rules with unit tests: roles, knowledge freshness, pipeline stages and money, CSR eligibility and fit score, award calls and reminders
 packages/db     Drizzle schema, migrations and seed data
 packages/ingest Data imports (National CSR Portal CSV) and scoring, shared by the worker, the web app and scripts
+packages/notify Deadline reminders, the weekly digest and the email outbox
 ```
 
 ## Run it locally
@@ -68,7 +81,7 @@ pnpm db:seed                      # demo users, starting facts, example pursuits
 pnpm dev                          # http://localhost:3000
 ```
 
-Sign in with **Continue as demo user** and pick a role. Uploaded files are saved under `apps/web/.data/uploads`. Run the worker in a second terminal with `pnpm worker`; it processes CSR imports.
+Sign in with **Continue as demo user** and pick a role. Uploaded files are saved under `apps/web/.data/uploads`. Run the worker in a second terminal with `pnpm worker`; it processes CSR imports and sends reminders and the digest.
 
 ## Importing National CSR Portal data
 
@@ -77,6 +90,18 @@ Sign in with **Continue as demo user** and pick a role. Uploaded files are saved
 3. The worker picks it up within a minute (or run `pnpm --filter @ve/ingest run-pending`). **Recent imports** shows how many companies were read and which rows were skipped.
 
 The file needs a company name, financial year and amount spent column. CIN, prescribed amount, development sector, state and project columns are used when present.
+
+## Reminders and the weekly digest
+
+The worker sends deadline reminders every day at 8am India time and the digest on Mondays at 8am. To run them by hand:
+
+```bash
+pnpm --filter @ve/notify reminders              # today's reminders
+pnpm --filter @ve/notify digest                 # this week's digest
+pnpm --filter @ve/notify reminders --date=2026-11-20   # as if it were another day
+```
+
+Emails are written to `apps/web/.data/outbox` (or `EMAIL_OUTBOX_DIR`) as a .txt and an .html file each. Links in them point at `APP_URL`. Production refuses to send until the email service is set up, so nothing is silently dropped.
 
 ## Tests
 
@@ -115,5 +140,6 @@ Emails listed in `ADMIN_EMAILS` become admins on their first sign-in. Everyone e
 | Web app | Vercel, Mumbai region (`bom1`) |
 | Database and files | Supabase, Mumbai (`ap-south-1`) |
 | Worker | Fly.io, Mumbai (`bom`) |
+| Email | An email service account (Resend in the blueprint), set up with hosting |
 
 All three are created in VE's name. Until they exist, everything runs locally.

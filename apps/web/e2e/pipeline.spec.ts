@@ -180,7 +180,7 @@ test("wide tables scroll inside themselves, so the page never scrolls sideways",
   await signInAs(page, "Associate");
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
-    for (const path of ["/pipeline", "/pipeline?view=table", "/", "/leads", "/leads/import"]) {
+    for (const path of ["/pipeline", "/pipeline?view=table", "/", "/leads", "/leads/import", "/calendar", "/calendar?view=month", "/settings"]) {
       await page.goto(path);
       expect(await page.evaluate(() => document.documentElement.scrollWidth), `${path} at ${width}px`).toBeLessThanOrEqual(width);
     }

@@ -21,19 +21,23 @@ export const PERMISSIONS = [
   "leads:edit",
   "knowledge:view",
   "knowledge:edit",
+  "calendar:view",
+  "calendar:edit",
   "drafts:approve",
   "intros:respond",
   "settings:manage",
   "users:manage",
+  "profile:edit",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
-const VIEW: Permission[] = ["pipeline:view", "leads:view", "knowledge:view"];
+// Everyone can see the work and choose which emails they get.
+const VIEW: Permission[] = ["pipeline:view", "leads:view", "knowledge:view", "calendar:view", "profile:edit"];
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   admin: [...PERMISSIONS],
-  approver: [...VIEW, "pipeline:edit", "leads:edit", "knowledge:edit", "drafts:approve"],
-  associate: [...VIEW, "pipeline:edit", "leads:edit", "knowledge:edit"],
+  approver: [...VIEW, "pipeline:edit", "leads:edit", "knowledge:edit", "calendar:edit", "drafts:approve"],
+  associate: [...VIEW, "pipeline:edit", "leads:edit", "knowledge:edit", "calendar:edit"],
   introducer: [...VIEW, "intros:respond"],
   viewer: VIEW,
 };

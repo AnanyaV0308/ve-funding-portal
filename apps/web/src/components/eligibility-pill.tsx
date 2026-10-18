@@ -1,4 +1,4 @@
-import { type Eligibility, ELIGIBILITY_LABELS } from "@ve/core";
+import { type Eligibility, ELIGIBILITY_LABELS, HIGH_FIT_SCORE } from "@ve/core";
 
 const STYLES: Record<Eligibility, string> = {
   eligible: "bg-ok-soft text-ok",
@@ -18,7 +18,7 @@ export function EligibilityPill({ verdict }: { verdict: Eligibility | null }) {
 /** The fit score as a number in a box, with its scale spelled out for screen readers. */
 export function FitBadge({ score, size = "md" }: { score: number | null; size?: "md" | "lg" }) {
   if (score === null) return <span className="text-ve-muted">–</span>;
-  const strong = score >= 70;
+  const strong = score >= HIGH_FIT_SCORE;
   return (
     <span
       className={`inline-flex items-center justify-center rounded-md font-bold ${

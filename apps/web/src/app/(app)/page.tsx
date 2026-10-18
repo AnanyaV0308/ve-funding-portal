@@ -12,9 +12,11 @@ import {
 import { db, funders } from "@ve/db";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import Link from "next/link";
-import { FitBadge } from "@/components/eligibility-pill";
+import { EligibilityPill, FitBadge } from "@/components/eligibility-pill";
 import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/authz";
+import { deadlineLabel, listCalls } from "@/lib/calendar";
+import { formatDate } from "@/lib/format";
 import { dueLabel, listPursuits, type PursuitRow, sumWeighted } from "@/lib/pipeline";
 
 export const metadata = { title: "This week" };
@@ -25,12 +27,12 @@ export default async function ThisWeekPage() {
   const header = (
     <PageHeader
       title={firstName ? `Welcome, ${firstName}` : "This week"}
-      intro="Your starting point each day: what's due, what has gone quiet, and where the pipeline stands."
+      intro="Your starting point each day: new leads, deadlines, what's due, what has gone quiet, and where the pipeline stands."
     />
   );
   if (!can(user.roles, "pipeline:view")) return header;
 
-  const [rows, newLeads] = await Promise.all([
+  const [rows, newLeads, calls] = await Promise.all([
     listPursuits(),
     can(user.roles, "leads:view")
       ? db
@@ -40,7 +42,11 @@ export default async function ThisWeekPage() {
           .orderBy(desc(funders.fitScore))
           .limit(5)
       : null,
+    can(user.roles, "calendar:view") ? listCalls() : null,
   ]);
+  const deadlines = calls?.filter(
+    (c) => c.daysLeft !== null && c.daysLeft >= 0 && c.daysLeft <= DUE_SOON_WINDOW_DAYS && !c.skippedReason && c.eligibility !== "not_eligible",
+  );
   const open = rows.filter((r) => !r.closed);
   const due = open
     .filter((r) => r.due && r.due !== "later")
@@ -83,6 +89,46 @@ export default async function ThisWeekPage() {
           )}
           <p>
             <Link href="/leads?new=1">See all new leads</Link>
+          </p>
+        </section>
+      ) : null}
+
+      {deadlines ? (
+        <section aria-labelledby="deadlines-heading" className="grid gap-3">
+          <div>
+            <h2 id="deadlines-heading" className="text-xl font-bold">
+              Award and grant deadlines <span className="text-base font-normal text-ve-muted">({deadlines.length})</span>
+            </h2>
+            <p className="text-sm text-ve-muted">Calls closing in the next {DUE_SOON_WINDOW_DAYS} days that VE hasn&apos;t ruled out.</p>
+          </div>
+          {deadlines.length ? (
+            <ul className="grid gap-2">
+              {deadlines.map((c) => (
+                <li key={c.id} className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-ve-line bg-white p-3">
+                  <div>
+                    <p>
+                      <Link href={`/calendar/${c.id}`} className="font-medium">
+                        {c.title}
+                      </Link>{" "}
+                      <span className="text-sm text-ve-muted">· {c.funder.name}</span>
+                    </p>
+                    <p>
+                      <span className={c.daysLeft! <= 7 ? "font-medium text-bad" : ""}>{deadlineLabel(c.daysLeft)}</span>
+                      <span className="text-sm text-ve-muted">
+                        {" "}
+                        · {formatDate(c.deadline)} · {c.application ? `Application ${stageLabel(c.application.stage).toLowerCase()}` : "No application yet"}
+                      </span>
+                    </p>
+                  </div>
+                  <EligibilityPill verdict={c.eligibility} />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-ve-muted">No deadlines in the next two weeks.</p>
+          )}
+          <p>
+            <Link href="/calendar">See the awards calendar</Link>
           </p>
         </section>
       ) : null}
@@ -180,8 +226,6 @@ export default async function ThisWeekPage() {
           </>
         )}
       />
-
-      <p className="text-sm text-ve-muted">Award and grant deadlines will also show here once the calendar is built.</p>
     </>
   );
 }
