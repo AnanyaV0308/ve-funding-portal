@@ -296,6 +296,9 @@ export function fitSettingsProblems(s: FitSettings): string[] {
 
 export const ELIGIBILITY = ["eligible", "needs_check", "not_eligible"] as const;
 export type Eligibility = (typeof ELIGIBILITY)[number];
+/** A fit score at or above this counts as a high-fit lead (highlighted, and listed in the weekly digest). */
+export const HIGH_FIT_SCORE = 70;
+
 export const ELIGIBILITY_LABELS: Record<Eligibility, string> = {
   eligible: "Eligible",
   needs_check: "Needs check",

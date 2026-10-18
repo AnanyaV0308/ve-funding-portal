@@ -1,9 +1,12 @@
 /**
  * Local demo data: one person per role, so every screen can be tried without Microsoft sign-in,
- * plus VE's starting knowledge-base facts and some example pursuits. Safe to run more than once.
+ * plus VE's starting knowledge-base facts, the awards VE knows about, and example pursuits and calls.
+ * Safe to run more than once.
  */
 import type { Role } from "@ve/core";
 import { db, userRoles, users } from "./index";
+import { seedAwards } from "./seed-awards";
+import { seedDemoCalls } from "./seed-demo-calls";
 import { seedDemoPipeline } from "./seed-demo-pipeline";
 import { seedKnowledge } from "./seed-knowledge";
 
@@ -31,4 +34,6 @@ for (const p of people) {
 console.log(`Seeded ${people.length} demo users`);
 await seedKnowledge();
 await seedDemoPipeline();
+await seedAwards();
+await seedDemoCalls();
 process.exit(0);

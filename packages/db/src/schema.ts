@@ -1,9 +1,11 @@
 import {
   ACTIVITY_KINDS,
   ALL_STAGES,
+  CALL_KINDS,
   CONSENT_STATUSES,
   DOCUMENT_KINDS,
   ELIGIBILITY,
+  type EligibilityCheck,
   type FitPartResult,
   FUNDER_TYPES,
   KNOWLEDGE_CATEGORIES,
@@ -12,6 +14,7 @@ import {
 } from "@ve/core";
 import { relations, sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   date,
@@ -43,6 +46,9 @@ export const users = pgTable("users", {
   image: text("image"),
   createdAt: createdAt(),
   lastSignInAt: timestamp("last_sign_in_at", { withTimezone: true }),
+  /** Each person chooses which emails they get, under Settings. */
+  digestEmails: boolean("digest_emails").notNull().default(true),
+  reminderEmails: boolean("reminder_emails").notNull().default(true),
 });
 
 export const accounts = pgTable(
@@ -238,11 +244,17 @@ export const pursuits = pgTable(
     nextActionDue: date("next_action_due", { mode: "string" }),
     closedReason: text("closed_reason"),
     revisitOn: date("revisit_on", { mode: "string" }),
+    /** The award or grant call an application pursuit is for. */
+    opportunityId: uuid("opportunity_id").references((): AnyPgColumn => opportunities.id, { onDelete: "set null" }),
     createdAt: createdAt(),
     createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("pursuits_track_stage_idx").on(t.track, t.stage), index("pursuits_owner_idx").on(t.ownerId)],
+  (t) => [
+    index("pursuits_track_stage_idx").on(t.track, t.stage),
+    index("pursuits_owner_idx").on(t.ownerId),
+    index("pursuits_opportunity_idx").on(t.opportunityId),
+  ],
 );
 
 export const pursuitStageChanges = pgTable(
@@ -366,6 +378,78 @@ export const appSettings = pgTable("app_settings", {
   updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
 });
 
+// ---------------------------------------------------------------------------
+// Awards and grants calendar: time-bound calls with a deadline and an eligibility checklist.
+// ---------------------------------------------------------------------------
+
+export const callKindEnum = pgEnum("call_kind", CALL_KINDS);
+
+export const opportunities = pgTable(
+  "opportunities",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Who runs the award or grant. */
+    funderId: uuid("funder_id")
+      .notNull()
+      .references(() => funders.id, { onDelete: "restrict" }),
+    kind: callKindEnum("kind").notNull(),
+    title: text("title").notNull(),
+    url: text("url"),
+    opensOn: date("opens_on", { mode: "string" }),
+    deadline: date("deadline", { mode: "string" }),
+    /** For a recurring award whose next dates aren't out yet, e.g. "Usually mid-May to mid-July". */
+    usualWindow: text("usual_window"),
+    /** Whole rupees, when there is a cash prize or grant amount. */
+    amount: bigint("amount", { mode: "number" }),
+    amountNote: text("amount_note"),
+    categories: text("categories"),
+    notes: text("notes"),
+    // The checklist a person fills in, and the verdict packages/core/src/awards.ts works out from it.
+    checks: jsonb("checks").$type<EligibilityCheck[]>().notNull().default([]),
+    eligibility: eligibilityEnum("eligibility").notNull().default("needs_check"),
+    eligibilityReasons: jsonb("eligibility_reasons").$type<string[]>(),
+    checkedAt: timestamp("checked_at", { withTimezone: true }),
+    checkedBy: text("checked_by").references(() => users.id, { onDelete: "set null" }),
+    /** Set when VE decides not to apply; skipped calls get no reminders. */
+    skippedReason: text("skipped_reason"),
+    skippedAt: timestamp("skipped_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("opportunities_title_idx").on(sql`lower(${t.title})`), index("opportunities_deadline_idx").on(t.deadline)],
+);
+
+// ---------------------------------------------------------------------------
+// Email the portal sends: deadline reminders and the weekly digest. Each email has a dedupe key
+// (for example "reminder:<call>:14:<user>") so a reminder or digest is never sent twice.
+// ---------------------------------------------------------------------------
+
+export const emailKindEnum = pgEnum("email_kind", ["reminder", "digest"]);
+export const emailStatusEnum = pgEnum("email_status", ["queued", "sent", "failed"]);
+
+export const outboundEmails = pgTable(
+  "outbound_emails",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: emailKindEnum("kind").notNull(),
+    dedupeKey: text("dedupe_key").notNull().unique(),
+    toUserId: text("to_user_id").references(() => users.id, { onDelete: "set null" }),
+    toEmail: text("to_email").notNull(),
+    subject: text("subject").notNull(),
+    html: text("html").notNull(),
+    text: text("text").notNull(),
+    opportunityId: uuid("opportunity_id").references(() => opportunities.id, { onDelete: "set null" }),
+    status: emailStatusEnum("status").notNull().default("queued"),
+    /** Where it went: "outbox" (a local folder) until an email service is set up. */
+    provider: text("provider"),
+    error: text("error"),
+    createdAt: createdAt(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+  },
+  (t) => [index("outbound_emails_status_idx").on(t.status, t.createdAt), index("outbound_emails_opportunity_idx").on(t.opportunityId)],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   roles: many(userRoles, { relationName: "holder" }),
 }));
@@ -390,6 +474,7 @@ export const documentVersionsRelations = relations(documentVersions, ({ one }) =
 
 export const fundersRelations = relations(funders, ({ many }) => ({
   pursuits: many(pursuits),
+  opportunities: many(opportunities),
   csrYears: many(csrYears),
   csrBreakdown: many(csrBreakdown),
   grantees: many(funderGrantees),
@@ -412,8 +497,15 @@ export const dataImportsRelations = relations(dataImports, ({ one }) => ({
   creator: one(users, { fields: [dataImports.createdBy], references: [users.id] }),
 }));
 
+export const opportunitiesRelations = relations(opportunities, ({ one, many }) => ({
+  funder: one(funders, { fields: [opportunities.funderId], references: [funders.id] }),
+  checker: one(users, { fields: [opportunities.checkedBy], references: [users.id], relationName: "callChecker" }),
+  pursuits: many(pursuits),
+}));
+
 export const pursuitsRelations = relations(pursuits, ({ one, many }) => ({
   funder: one(funders, { fields: [pursuits.funderId], references: [funders.id] }),
+  opportunity: one(opportunities, { fields: [pursuits.opportunityId], references: [opportunities.id] }),
   owner: one(users, { fields: [pursuits.ownerId], references: [users.id], relationName: "pursuitOwner" }),
   stageChanges: many(pursuitStageChanges),
   activities: many(pursuitActivities),

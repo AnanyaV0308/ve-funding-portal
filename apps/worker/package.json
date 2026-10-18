@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@ve/ingest": "workspace:*",
+    "@ve/notify": "workspace:*",
     "pg-boss": "^12.38.0"
   },
   "devDependencies": {

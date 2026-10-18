@@ -83,6 +83,9 @@ importers:
       '@ve/ingest':
         specifier: workspace:*
         version: link:../../packages/ingest
+      '@ve/notify':
+        specifier: workspace:*
+        version: link:../../packages/notify
       pg-boss:
         specifier: ^12.38.0
         version: 12.38.0(@opentelemetry/api@1.9.1)
@@ -132,6 +135,28 @@ importers:
         version: 5.9.3
 
   packages/ingest:
+    dependencies:
+      '@ve/core':
+        specifier: workspace:*
+        version: link:../core
+      '@ve/db':
+        specifier: workspace:*
+        version: link:../db
+      drizzle-orm:
+        specifier: ^0.45.4
+        version: 0.45.4(@opentelemetry/api@1.9.1)(pg@8.23.1)(postgres@3.4.9)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.0
+        version: 22.20.5
+      tsx:
+        specifier: ^4.20.3
+        version: 4.23.15
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/notify:
     dependencies:
       '@ve/core':
         specifier: workspace:*

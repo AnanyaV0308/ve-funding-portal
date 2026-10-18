@@ -33,6 +33,7 @@ async function load(id: string) {
     where: eq(pursuits.id, id),
     with: {
       funder: true,
+      opportunity: { columns: { id: true, title: true, deadline: true } },
       stageChanges: { orderBy: desc(pursuitStageChanges.changedAt), with: { changer: { columns: { name: true, email: true } } } },
       activities: {
         orderBy: [desc(pursuitActivities.occurredOn), desc(pursuitActivities.createdAt)],
@@ -76,6 +77,13 @@ export default async function PursuitPage({ params, searchParams }: { params: Pr
           {can(user.roles, "leads:view") ? <Link href={`/funders/${p.funder.id}`}>{p.funder.name}</Link> : p.funder.name} ·{" "}
           {FUNDER_TYPE_LABELS[p.funder.type]}
         </p>
+        {p.opportunity ? (
+          <p>
+            For the call{" "}
+            {can(user.roles, "calendar:view") ? <Link href={`/calendar/${p.opportunity.id}`}>{p.opportunity.title}</Link> : p.opportunity.title}
+            {p.opportunity.deadline ? `, deadline ${formatDate(p.opportunity.deadline)}` : ""}
+          </p>
+        ) : null}
       </header>
 
       {search.created ? <Notice>Pursuit added.</Notice> : null}

@@ -1,0 +1,24 @@
+{
+  "name": "@ve/notify",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'covered by packages/core unit tests and the web e2e tests'",
+    "reminders": "tsx --env-file-if-exists=../../.env src/cli.ts reminders",
+    "digest": "tsx --env-file-if-exists=../../.env src/cli.ts digest",
+    "deliver": "tsx --env-file-if-exists=../../.env src/cli.ts deliver"
+  },
+  "dependencies": {
+    "@ve/core": "workspace:*",
+    "@ve/db": "workspace:*",
+    "drizzle-orm": "^0.45.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.3"
+  }
+}

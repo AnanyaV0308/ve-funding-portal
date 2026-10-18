@@ -48,8 +48,22 @@ test("the last admin can't remove their own admin role", async ({ page }) => {
   await expect(me.getByRole("status")).toHaveText(/at least one admin/);
 });
 
-test("people without the right role can't open Settings", async ({ page }) => {
+test("everyone chooses their own emails, but only admins manage people", async ({ page }) => {
   await signInAs(page, "Associate");
   await page.goto("/settings");
-  await expect(page.getByRole("main").getByRole("alert")).toContainText("You can't open Settings");
+  await expect(page.getByRole("heading", { level: 2, name: "Emails to me" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^People/ })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Emails sent" })).toHaveCount(0);
+  await expectNoAxeViolations(page);
+
+  const digest = page.getByRole("checkbox", { name: /Weekly digest/ });
+  await digest.uncheck();
+  await page.getByRole("button", { name: "Save email choices" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Email choices saved." })).toBeVisible();
+  await page.reload();
+  await expect(digest).not.toBeChecked();
+  // Put it back so the test can run again.
+  await digest.check();
+  await page.getByRole("button", { name: "Save email choices" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Email choices saved." })).toBeVisible();
 });
