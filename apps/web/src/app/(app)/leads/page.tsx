@@ -95,7 +95,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     <>
       <PageHeader
         title="CSR leads"
-        intro="Indian companies ranked by how well they fit VE, from National CSR Portal data and what VE has added. Open a company to see why it scored what it did."
+        intro="Indian companies ranked by how well they fit VE, from National CSR Portal data, peer NGO donor lists and what VE has added. Open a company to see why it scored what it did."
       />
 
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -103,9 +103,14 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           <strong className="text-ve-charcoal">{total}</strong> {total === 1 ? "company" : "companies"}
           {filtered ? " match" : ""} · floor {formatInrShort(settings.floorRupees)}
         </p>
-        <Link href="/leads/import" className={`btn no-underline ${canImport ? "btn-primary" : "btn-secondary"}`}>
-          {canImport ? "Import CSR data" : "See imports"}
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link href="/leads/donors" className="btn btn-secondary no-underline">
+            {canImport ? "Add peer NGO donors" : "Peer NGO donors"}
+          </Link>
+          <Link href="/leads/import" className={`btn no-underline ${canImport ? "btn-primary" : "btn-secondary"}`}>
+            {canImport ? "Import CSR data" : "See imports"}
+          </Link>
+        </div>
       </div>
 
       <form method="get" action="/leads" aria-label="Filter leads" className="grid gap-3 rounded-lg border border-ve-line bg-white p-4 sm:grid-cols-2 lg:grid-cols-3">

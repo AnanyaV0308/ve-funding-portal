@@ -6,6 +6,13 @@ This repository holds **Phase 1**: the knowledge base, ranked CSR leads, the pip
 
 ## What's here so far
 
+### Step 6: peer NGO donor lists
+
+- **CSR leads → Add peer NGO donors**: paste the donors a peer NGO names in its annual report or on its website, one per line. An amount after a comma (`Tata Steel Ltd, 25 lakh`) and a CIN anywhere on the line are picked up; bullets, numbering and repeats are ignored
+- **Check the list** shows how each donor matches the portal before anything is saved: on CIN first, then on the name with "Ltd", "Limited", "Pvt" and punctuation ignored. Donors the portal doesn't know are added as companies, foundations or individuals, and new companies are marked Needs check
+- Saving records the NGO against each donor, so a company that funds a peer NGO gets the fit score's peer points straight away. The page warns when the NGO isn't on the peer list in Settings, because then the list changes no scores
+- **Donor lists added** shows every list with its source. Removing one takes its NGO off each donor and removes the funders it added, unless someone has since added CSR data, notes or a pursuit for them
+
 ### Step 5: awards calendar, reminders and the weekly digest
 
 - **Awards calendar** of award, grant and call-for-proposals deadlines, as a **list** (open now, opening later, dates not announced, closed) and a **month** grid with the same dates listed underneath for screen readers. Filters for kind, eligibility, skipped and closed calls

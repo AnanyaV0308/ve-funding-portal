@@ -364,11 +364,32 @@ export const funderGrantees = pgTable(
     amount: bigint("amount", { mode: "number" }),
     sourceLabel: text("source_label"),
     sourceUrl: text("source_url"),
+    /** Set when the row came from a peer NGO's donor list; removing the list removes the row. */
+    donorListId: uuid("donor_list_id").references((): AnyPgColumn => donorLists.id, { onDelete: "cascade" }),
     createdAt: createdAt(),
     createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   },
-  (t) => [index("funder_grantees_funder_idx").on(t.funderId)],
+  (t) => [index("funder_grantees_funder_idx").on(t.funderId), index("funder_grantees_list_idx").on(t.donorListId)],
 );
+
+/**
+ * A peer NGO's donor list, pasted from its annual report or website. Each donor becomes a
+ * funder_grantees row naming the NGO, which is what the fit score's peer part reads.
+ */
+export const donorLists = pgTable("donor_lists", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ngoName: text("ngo_name").notNull(),
+  fy: text("fy"),
+  sourceLabel: text("source_label").notNull(),
+  sourceUrl: text("source_url"),
+  newFunderType: funderTypeEnum("new_funder_type").notNull().default("company"),
+  donorCount: integer("donor_count").notNull(),
+  matchedCount: integer("matched_count").notNull(),
+  /** Funders this list added, so removing the list can take away the ones nothing else uses. */
+  createdFunderIds: jsonb("created_funder_ids").$type<string[]>().notNull().default([]),
+  createdAt: createdAt(),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+});
 
 /** Settings admins change in the app, such as the fit-score weights. One JSON value per key. */
 export const appSettings = pgTable("app_settings", {
@@ -491,6 +512,12 @@ export const csrBreakdownRelations = relations(csrBreakdown, ({ one }) => ({
 
 export const funderGranteesRelations = relations(funderGrantees, ({ one }) => ({
   funder: one(funders, { fields: [funderGrantees.funderId], references: [funders.id] }),
+  donorList: one(donorLists, { fields: [funderGrantees.donorListId], references: [donorLists.id] }),
+}));
+
+export const donorListsRelations = relations(donorLists, ({ one, many }) => ({
+  creator: one(users, { fields: [donorLists.createdBy], references: [users.id] }),
+  grantees: many(funderGrantees),
 }));
 
 export const dataImportsRelations = relations(dataImports, ({ one }) => ({
