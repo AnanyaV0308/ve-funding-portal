@@ -10,6 +10,7 @@
     "test": "echo 'no tests yet'"
   },
   "dependencies": {
+    "@ve/ingest": "workspace:*",
     "pg-boss": "^12.38.0"
   },
   "devDependencies": {

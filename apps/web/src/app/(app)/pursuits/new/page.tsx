@@ -9,10 +9,10 @@ import { NewPursuitForm } from "../pursuit-form";
 
 export const metadata = { title: "Add a pursuit" };
 
-export default async function NewPursuitPage({ searchParams }: { searchParams: Promise<{ track?: string }> }) {
+export default async function NewPursuitPage({ searchParams }: { searchParams: Promise<{ track?: string; funderId?: string }> }) {
   const user = await requireUser();
   if (!can(user.roles, "pipeline:edit")) return <NoAccess what="this page" />;
-  const { track } = await searchParams;
+  const { track, funderId } = await searchParams;
   const [funderRows, people] = await Promise.all([
     db.select({ id: funders.id, name: funders.name }).from(funders).orderBy(asc(funders.name)),
     listPeople(),
@@ -25,6 +25,7 @@ export default async function NewPursuitPage({ searchParams }: { searchParams: P
         people={people}
         defaultTrack={TRACKS.find((t): t is Track => t === track) ?? "relationship"}
         defaultOwnerId={user.id}
+        defaultFunderId={funderRows.find((f) => f.id === funderId)?.id}
       />
     </>
   );

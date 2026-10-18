@@ -1,6 +1,6 @@
 # Notes for Claude
 
-- pnpm monorepo: `apps/web` (Next.js 16 App Router), `apps/worker` (pg-boss), `packages/core` (pure business rules, unit-tested with Vitest), `packages/db` (Drizzle + postgres-js).
+- pnpm monorepo: `apps/web` (Next.js 16 App Router), `apps/worker` (pg-boss), `packages/core` (pure business rules, unit-tested with Vitest), `packages/db` (Drizzle + postgres-js), `packages/ingest` (data imports and rescoring, used by the worker, web and scripts).
 - Next.js 16 differs from older versions; read `apps/web/AGENTS.md` and the docs in `node_modules/next/dist/docs/` before using unfamiliar APIs.
 - One `.env` at the repo root serves every package (`next.config.ts` loads it).
 - Every write goes through a server action that calls `requirePermission()` from `apps/web/src/lib/authz.ts`. Never rely on hiding UI for access control.
@@ -11,5 +11,7 @@
 - Knowledge facts carry `confirmed_at` + `refresh_months`; status rules live in `packages/core/src/knowledge.ts`. Drafts must only use facts where `usableInDrafts()` is true.
 - Pipeline stages, probabilities, weighted value, stuck and due rules live in `packages/core/src/pipeline.ts`. Amounts are whole rupees in a `bigint`; parse input with `parseInr` and show it with `formatInrShort`/`formatInr`. Every stage change writes a `pursuit_stage_changes` row; lost stages need a reason.
 - Drag-and-drop always has a non-drag alternative (the board's Stage menu). Scroll containers are `relative` so `sr-only` text can't make the page scroll sideways.
+- CSR rules (CSV reading, eligibility, ticket estimate, fit score) live in `packages/core/src/csr.ts`; fit settings are stored in `app_settings` via `packages/db/src/settings.ts`. Funders are matched on CIN, then name. Foreign companies are never eligible (VE has no FCRA).
+- Imports: the web app stores the CSV and queues a `data_imports` row; the worker's `pending-work` job (every minute) runs it through `@ve/ingest`. Anything that changes a company's facts calls `rescoreFunders([id])`. Locally `pnpm --filter @ve/ingest run-pending` runs the queue without the worker. Upload keys start with `uploads/`, so files sit at `apps/web/.data/uploads/uploads/...`.
 - e2e tests share one database and run with one worker; give records they create unique names.
 - Data stays in India (Supabase Mumbai, Vercel bom1, Fly bom). No LinkedIn scraping.

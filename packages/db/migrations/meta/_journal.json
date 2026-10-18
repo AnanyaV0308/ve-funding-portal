@@ -22,6 +22,13 @@
       "when": 1792303456312,
       "tag": "0002_parched_wilson_fisk",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792306227954,
+      "tag": "0003_rainy_ezekiel",
+      "breakpoints": true
     }
   ]
 }

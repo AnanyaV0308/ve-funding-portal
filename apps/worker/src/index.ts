@@ -1,8 +1,8 @@
 /**
  * Background worker. Runs scheduled and slow jobs (crawls, scoring, reminders, digests) from a
- * pg-boss queue that lives in the same Postgres as the app. Step 1 only registers a heartbeat so
- * the plumbing is proven; real jobs arrive with the CSR engine and the calendar.
+ * pg-boss queue that lives in the same Postgres as the app.
  */
+import { runPending } from "@ve/ingest";
 import { PgBoss } from "pg-boss";
 
 const url = process.env.DATABASE_URL;
@@ -18,6 +18,15 @@ await boss.createQueue(HEARTBEAT);
 await boss.schedule(HEARTBEAT, "*/15 * * * *", {}, { tz: "Asia/Kolkata" });
 await boss.work(HEARTBEAT, async () => {
   console.log(`[worker] heartbeat ${new Date().toISOString()}`);
+});
+
+// CSR imports people upload, and rescoring after the fit settings change. Each run takes whatever
+// is waiting; a single-concurrency queue means two runs never overlap.
+const PENDING = "pending-work";
+await boss.createQueue(PENDING, { policy: "singleton" });
+await boss.schedule(PENDING, "* * * * *", {}, { tz: "Asia/Kolkata" });
+await boss.work(PENDING, async () => {
+  await runPending((m) => console.log(`[worker] ${m}`));
 });
 
 console.log("[worker] started");

@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/authz";
 
 const NAV: NavItem[] = [
   { href: "/", label: "This week" },
-  { href: "/leads", label: "CSR leads" },
+  { href: "/leads", label: "CSR leads", also: ["/funders"] },
   { href: "/pipeline", label: "Pipeline", also: ["/pursuits"] },
   { href: "/calendar", label: "Awards calendar" },
   { href: "/knowledge", label: "Knowledge base" },

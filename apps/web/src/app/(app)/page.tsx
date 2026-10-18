@@ -9,7 +9,10 @@ import {
   TRACK_LABELS,
   TRACKS,
 } from "@ve/core";
+import { db, funders } from "@ve/db";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import Link from "next/link";
+import { FitBadge } from "@/components/eligibility-pill";
 import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/authz";
 import { dueLabel, listPursuits, type PursuitRow, sumWeighted } from "@/lib/pipeline";
@@ -27,7 +30,17 @@ export default async function ThisWeekPage() {
   );
   if (!can(user.roles, "pipeline:view")) return header;
 
-  const rows = await listPursuits();
+  const [rows, newLeads] = await Promise.all([
+    listPursuits(),
+    can(user.roles, "leads:view")
+      ? db
+          .select({ id: funders.id, name: funders.name, fitScore: funders.fitScore, fitSummary: funders.fitSummary })
+          .from(funders)
+          .where(and(eq(funders.type, "company"), eq(funders.eligibility, "eligible"), gte(funders.createdAt, sql`now() - interval '7 days'`)))
+          .orderBy(desc(funders.fitScore))
+          .limit(5)
+      : null,
+  ]);
   const open = rows.filter((r) => !r.closed);
   const due = open
     .filter((r) => r.due && r.due !== "later")
@@ -42,6 +55,37 @@ export default async function ThisWeekPage() {
   return (
     <>
       {header}
+
+      {newLeads ? (
+        <section aria-labelledby="leads-heading" className="grid gap-3">
+          <div>
+            <h2 id="leads-heading" className="text-xl font-bold">
+              New CSR leads
+            </h2>
+            <p className="text-sm text-ve-muted">Eligible companies added in the last 7 days, best fit first.</p>
+          </div>
+          {newLeads.length ? (
+            <ul className="grid gap-2">
+              {newLeads.map((f) => (
+                <li key={f.id} className="flex items-start gap-3 rounded-md border border-ve-line bg-white p-3">
+                  <FitBadge score={f.fitScore} />
+                  <div>
+                    <Link href={`/funders/${f.id}`} className="font-medium">
+                      {f.name}
+                    </Link>
+                    <p className="text-sm">{f.fitSummary}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-ve-muted">No new eligible companies this week.</p>
+          )}
+          <p>
+            <Link href="/leads?new=1">See all new leads</Link>
+          </p>
+        </section>
+      ) : null}
 
       <section aria-labelledby="glance-heading" className="grid gap-3">
         <h2 id="glance-heading" className="text-xl font-bold">
@@ -137,7 +181,7 @@ export default async function ThisWeekPage() {
         )}
       />
 
-      <p className="text-sm text-ve-muted">New high-fit CSR leads and award deadlines will also show here once those screens are built.</p>
+      <p className="text-sm text-ve-muted">Award and grant deadlines will also show here once the calendar is built.</p>
     </>
   );
 }

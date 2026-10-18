@@ -3,6 +3,8 @@ import {
   ALL_STAGES,
   CONSENT_STATUSES,
   DOCUMENT_KINDS,
+  ELIGIBILITY,
+  type FitPartResult,
   FUNDER_TYPES,
   KNOWLEDGE_CATEGORIES,
   ROLES,
@@ -11,6 +13,7 @@ import {
 import { relations, sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   date,
   index,
   integer,
@@ -181,6 +184,8 @@ export const stageEnum = pgEnum("stage", ALL_STAGES);
 export const activityKindEnum = pgEnum("activity_kind", ACTIVITY_KINDS);
 
 /** An organisation or person who can give. Step 4 adds the Indian entity, CIN, eligibility and fit. */
+export const eligibilityEnum = pgEnum("eligibility", ELIGIBILITY);
+
 export const funders = pgTable(
   "funders",
   {
@@ -189,10 +194,28 @@ export const funders = pgTable(
     type: funderTypeEnum("type").notNull(),
     website: text("website"),
     notes: text("notes"),
+    /** The Indian company's Corporate Identification Number. Only Indian entities can fund VE. */
+    cin: text("cin").unique(),
+    /** Set by hand for a multinational parent or other foreign entity; VE can't take its money without FCRA. */
+    isForeign: boolean("is_foreign").notNull().default(false),
+    /** Who at VE knows someone there, and how. Counts towards the fit score's warm-path part. */
+    warmPath: text("warm_path"),
+    // Worked out by the CSR engine from the data below; see packages/core/src/csr.ts.
+    eligibility: eligibilityEnum("eligibility"),
+    eligibilityReasons: jsonb("eligibility_reasons").$type<string[]>(),
+    fitScore: integer("fit_score"),
+    fitParts: jsonb("fit_parts").$type<FitPartResult[]>(),
+    fitSummary: text("fit_summary"),
+    latestFy: text("latest_fy"),
+    /** Whole rupees. */
+    latestSpend: bigint("latest_spend", { mode: "number" }),
+    ticketEstimate: bigint("ticket_estimate", { mode: "number" }),
+    ticketBasis: text("ticket_basis"),
+    scoredAt: timestamp("scored_at", { withTimezone: true }),
     createdAt: createdAt(),
     createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   },
-  (t) => [uniqueIndex("funders_name_idx").on(sql`lower(${t.name})`)],
+  (t) => [uniqueIndex("funders_name_idx").on(sql`lower(${t.name})`), index("funders_fit_idx").on(t.eligibility, t.fitScore)],
 );
 
 export const pursuits = pgTable(
@@ -254,6 +277,95 @@ export const pursuitActivities = pgTable(
   (t) => [index("pursuit_activities_pursuit_idx").on(t.pursuitId, t.occurredOn)],
 );
 
+// ---------------------------------------------------------------------------
+// CSR data. One row per company per financial year, plus how that year's spend split by
+// development sector and by state. Each row remembers which import it came from.
+// ---------------------------------------------------------------------------
+
+export const importStatusEnum = pgEnum("import_status", ["queued", "running", "done", "failed"]);
+export const csrBreakdownKindEnum = pgEnum("csr_breakdown_kind", ["sector", "state"]);
+
+export const dataImports = pgTable("data_imports", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  /** Where the data came from, e.g. "National CSR Portal". */
+  source: text("source").notNull(),
+  fileKey: text("file_key").notNull(),
+  fileName: text("file_name").notNull(),
+  /** "auto", "crore", "lakh" or "rupees". */
+  unit: text("unit").notNull().default("auto"),
+  status: importStatusEnum("status").notNull().default("queued"),
+  rowsRead: integer("rows_read"),
+  companies: integer("companies"),
+  fundersCreated: integer("funders_created"),
+  problems: jsonb("problems").$type<{ row: number; message: string }[]>(),
+  error: text("error"),
+  createdAt: createdAt(),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});
+
+export const csrYears = pgTable(
+  "csr_years",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    funderId: uuid("funder_id")
+      .notNull()
+      .references(() => funders.id, { onDelete: "cascade" }),
+    /** "2023-24". */
+    fy: text("fy").notNull(),
+    /** Whole rupees. */
+    spent: bigint("spent", { mode: "number" }).notNull(),
+    prescribed: bigint("prescribed", { mode: "number" }),
+    projectCount: integer("project_count").notNull().default(0),
+    importId: uuid("import_id").references(() => dataImports.id, { onDelete: "set null" }),
+  },
+  (t) => [uniqueIndex("csr_years_funder_fy_idx").on(t.funderId, t.fy), index("csr_years_fy_idx").on(t.fy)],
+);
+
+export const csrBreakdown = pgTable(
+  "csr_breakdown",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    funderId: uuid("funder_id")
+      .notNull()
+      .references(() => funders.id, { onDelete: "cascade" }),
+    fy: text("fy").notNull(),
+    kind: csrBreakdownKindEnum("kind").notNull(),
+    /** A development sector or a state, as the portal names it. */
+    name: text("name").notNull(),
+    amount: bigint("amount", { mode: "number" }).notNull(),
+  },
+  (t) => [uniqueIndex("csr_breakdown_idx").on(t.funderId, t.fy, t.kind, t.name), index("csr_breakdown_name_idx").on(t.kind, t.name)],
+);
+
+/** NGOs a funder is known to fund, from annual reports or VE's own knowledge. Drives the peer part of the fit score. */
+export const funderGrantees = pgTable(
+  "funder_grantees",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    funderId: uuid("funder_id")
+      .notNull()
+      .references(() => funders.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    fy: text("fy"),
+    amount: bigint("amount", { mode: "number" }),
+    sourceLabel: text("source_label"),
+    sourceUrl: text("source_url"),
+    createdAt: createdAt(),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  (t) => [index("funder_grantees_funder_idx").on(t.funderId)],
+);
+
+/** Settings admins change in the app, such as the fit-score weights. One JSON value per key. */
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   roles: many(userRoles, { relationName: "holder" }),
 }));
@@ -278,6 +390,26 @@ export const documentVersionsRelations = relations(documentVersions, ({ one }) =
 
 export const fundersRelations = relations(funders, ({ many }) => ({
   pursuits: many(pursuits),
+  csrYears: many(csrYears),
+  csrBreakdown: many(csrBreakdown),
+  grantees: many(funderGrantees),
+}));
+
+export const csrYearsRelations = relations(csrYears, ({ one }) => ({
+  funder: one(funders, { fields: [csrYears.funderId], references: [funders.id] }),
+  dataImport: one(dataImports, { fields: [csrYears.importId], references: [dataImports.id] }),
+}));
+
+export const csrBreakdownRelations = relations(csrBreakdown, ({ one }) => ({
+  funder: one(funders, { fields: [csrBreakdown.funderId], references: [funders.id] }),
+}));
+
+export const funderGranteesRelations = relations(funderGrantees, ({ one }) => ({
+  funder: one(funders, { fields: [funderGrantees.funderId], references: [funders.id] }),
+}));
+
+export const dataImportsRelations = relations(dataImports, ({ one }) => ({
+  creator: one(users, { fields: [dataImports.createdBy], references: [users.id] }),
 }));
 
 export const pursuitsRelations = relations(pursuits, ({ one, many }) => ({

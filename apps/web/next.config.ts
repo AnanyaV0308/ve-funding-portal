@@ -13,7 +13,7 @@ try {
 
 const nextConfig: NextConfig = {
   // Workspace packages ship TypeScript source; Next compiles them with the app.
-  transpilePackages: ["@ve/core", "@ve/db"],
+  transpilePackages: ["@ve/core", "@ve/db", "@ve/ingest"],
   turbopack: { root },
   outputFileTracingRoot: root,
 };
