@@ -4,13 +4,23 @@ Vision Empower's fundraising portal: find Indian funders that fit VE's mission, 
 
 This repository holds **Phase 1**: the knowledge base, ranked CSR leads, the pipeline tracker and an awards calendar. The plan is in the [build blueprint](https://claude.ai/artifact/5uzKvoqRw9VvpPbgXk2Tve) and the PRD.
 
-## What's here so far (step 1)
+## What's here so far
+
+### Step 2: knowledge base
+
+- **Facts and numbers** for VE's organisation details, impact numbers, programmes, stories, approved answers and budget templates. Each fact has a source, an as-of date, an owner and a review period
+- Every fact shows whether it's **Current**, **Review soon**, **Out of date** or **Needs confirming**. Saving a fact or pressing **Still correct** marks it as checked. Only confirmed, in-date facts will be used in drafts
+- 27 starting facts from the PRD research (registrations, leadership, FY 2024-25 and 2025-26 impact numbers, programmes), all marked **Needs confirming** until someone at VE checks them. Load them anywhere with `pnpm --filter @ve/db seed:knowledge`
+- **Documents** (annual reports, accounts, registrations, proposals, MoUs and award citations) with versions. Files go from the browser straight to storage through a 15-minute signed link, so large PDFs never pass through the app server
+- Viewers can read; associates, approvers and admins can edit
+
+### Step 1: app shell, sign-in and roles
 
 - The app shell in VE's brand: logo, yellow, olive and charcoal, with the Ubuntu and Oswald fonts
 - Sign-in with Microsoft 365, plus a demo-user sign-in for local development only
 - Roles set by VE in Settings: Admin, Approver, Associate, Introducer and Viewer. Every write is checked on the server, and VE can never be left without an admin
 - An audit log of sign-ins and role changes
-- Placeholder screens for This week, CSR leads, Pipeline, Awards calendar and Knowledge base, each saying which step builds it
+- Placeholder screens for This week, CSR leads, Pipeline and Awards calendar, each saying which step builds it
 - A background worker on a Postgres-backed queue (pg-boss), currently running a heartbeat job only
 - Unit tests for the role rules, and browser tests that open every screen and run an automated WCAG 2.2 AA check
 
@@ -36,7 +46,7 @@ pnpm db:seed                      # five demo users, one per role
 pnpm dev                          # http://localhost:3000
 ```
 
-Sign in with **Continue as demo user** and pick a role. Run the worker in a second terminal with `pnpm worker`.
+Sign in with **Continue as demo user** and pick a role. Uploaded files are saved under `apps/web/.data/uploads`. Run the worker in a second terminal with `pnpm worker`.
 
 ## Tests
 

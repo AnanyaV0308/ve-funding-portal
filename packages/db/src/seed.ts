@@ -1,9 +1,10 @@
 /**
- * Local demo data: one person per role, so every screen can be tried without Microsoft sign-in.
- * Safe to run more than once.
+ * Local demo data: one person per role, so every screen can be tried without Microsoft sign-in,
+ * plus VE's starting knowledge-base facts. Safe to run more than once.
  */
 import type { Role } from "@ve/core";
 import { db, userRoles, users } from "./index";
+import { seedKnowledge } from "./seed-knowledge";
 
 const people: { name: string; email: string; roles: Role[] }[] = [
   { name: "Demo Admin", email: "admin@demo.visionempower.local", roles: ["admin"] },
@@ -27,4 +28,5 @@ for (const p of people) {
 }
 
 console.log(`Seeded ${people.length} demo users`);
+await seedKnowledge();
 process.exit(0);

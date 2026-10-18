@@ -1,17 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
-
-async function signInAs(page: Page, role: string) {
-  await page.goto("/signin");
-  await page.getByRole("radio", { name: role, exact: true }).check();
-  await page.getByRole("button", { name: "Continue as demo user" }).click();
-  await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
-}
-
-async function expectNoAxeViolations(page: Page) {
-  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
-  expect(results.violations.map((v) => `${v.id}: ${v.help} (${v.nodes.length})`)).toEqual([]);
-}
+import { expect, test } from "@playwright/test";
+import { expectNoAxeViolations, signInAs } from "./helpers";
 
 test("signed-out visitors are sent to sign in", async ({ page }) => {
   await page.goto("/pipeline");
@@ -63,5 +51,5 @@ test("the last admin can't remove their own admin role", async ({ page }) => {
 test("people without the right role can't open Settings", async ({ page }) => {
   await signInAs(page, "Associate");
   await page.goto("/settings");
-  await expect(page.getByRole("alert")).toContainText("You can't open Settings");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("You can't open Settings");
 });

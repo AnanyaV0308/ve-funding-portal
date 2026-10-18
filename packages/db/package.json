@@ -9,7 +9,8 @@
     "test": "echo 'no tests yet'",
     "generate": "drizzle-kit generate",
     "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
-    "seed": "tsx --env-file-if-exists=../../.env src/seed.ts"
+    "seed": "tsx --env-file-if-exists=../../.env src/seed.ts",
+    "seed:knowledge": "tsx --env-file-if-exists=../../.env src/seed-knowledge.ts"
   },
   "dependencies": {
     "@ve/core": "workspace:*",

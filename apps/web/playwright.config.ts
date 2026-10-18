@@ -1,10 +1,19 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Tests reset a little database state directly, so they read the same root .env as the app.
+try {
+  process.loadEnvFile("../../.env");
+} catch {
+  // CI passes DATABASE_URL in the environment.
+}
+
 const PORT = Number(process.env.PORT ?? 3100);
 
 export default defineConfig({
   testDir: "./e2e",
+  // One worker: tests share one database and some change roles.
   fullyParallel: false,
+  workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
