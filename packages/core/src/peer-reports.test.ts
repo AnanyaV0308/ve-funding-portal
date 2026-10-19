@@ -7,6 +7,7 @@ import {
   pagesToRead,
   type ReportDonor,
   reportFy,
+  reportLabel,
   reportsToRead,
   uniqueReports,
 } from "./peer-reports";
@@ -59,7 +60,7 @@ describe("findReportLinks", () => {
         fy: "2023-24",
       },
       { url: "https://www.example.org/annual-report/docs/XRCVC_Annual%20Report_2021-22.pdf", text: "2021–22 Older report", fy: "2021-22" },
-      { url: "https://www.example.org/wp-content/uploads/2026/09/BPA-Report-25-26.pdf", text: "Download", fy: "2025-26" },
+      { url: "https://www.example.org/wp-content/uploads/2026/09/BPA-Report-25-26.pdf", text: "BPA Report 25-26", fy: "2025-26" },
       { url: "https://drive.usercontent.google.com/download?id=1AbCdEfGhIjKlMnOp&export=download&confirm=t", text: "Annual Report 2022-23", fy: "2022-23" },
     ]);
   });
@@ -84,6 +85,16 @@ describe("findReportLinks", () => {
       ["EI_AR_2022-23.pdf", "2022-23"],
       // The link's year was copied from another report; the file's is right.
       ["annual-report-2020-to-2021.pdf", "2020-21"],
+    ]);
+  });
+
+  it("names a report by its file when its link says nothing about it", () => {
+    const html = `<a href="/wp-content/uploads/2025/10/Annual-Report-2025-India-Final.pdf">READ MORE</a>
+      <a href="/uploads/Saksham-Annual-Report-2023-2024-compressed.pdf"><img alt="Cover of the Saksham annual report 2023-2024 showing children reading braille books together in a classroom with their teacher"></a>
+      <a href="/uploads/Impact-Measurement-Report-2020-CABI.pdf">Impact Measurement Report 2020 CABI</a>`;
+    expect(findReportLinks(html, "https://visionaid.org/annual-reports/").reports.map((r) => [r.text, r.fy])).toEqual([
+      ["Annual Report 2025 India Final", null],
+      ["Saksham Annual Report 2023-2024 compressed", "2023-24"],
     ]);
   });
 
@@ -124,6 +135,32 @@ describe("reportsToRead", () => {
   it("reads nothing older once the newest are known", () => {
     expect(reportsToRead(found, ["d.pdf", "b-2023-24.pdf"])).toEqual([]);
     expect(reportsToRead([...found, link("e-2025-26.pdf", "2025-26")], ["d.pdf", "b-2023-24.pdf"]).map((r) => r.url)).toEqual(["e-2025-26.pdf"]);
+  });
+
+  it("goes by the year in a report's name, not the folder it was uploaded to", () => {
+    const site = "https://mitrajyothi.org/wp-content/uploads";
+    const picks = reportsToRead(
+      [
+        link(`${site}/2025/01/Annual_Report_2022.pdf`, null, "Annual Report 2022"),
+        link(`${site}/2023/08/Annual_Report_2024.pdf`, null, "Annual Report 2024"),
+        link(`${site}/2024/09/Annual-Report.pdf`, null, "Annual report"),
+      ],
+      [],
+      3,
+    );
+    expect(picks.map((r) => r.url.slice(site.length))).toEqual([
+      "/2023/08/Annual_Report_2024.pdf",
+      "/2024/09/Annual-Report.pdf",
+      "/2025/01/Annual_Report_2022.pdf",
+    ]);
+  });
+});
+
+describe("reportLabel", () => {
+  it("names a report by its financial year, or by the one year its title gives", () => {
+    expect(reportLabel("Saksham", { fy: "2023-24", title: "Annual Report" })).toBe("Saksham annual report 2023-24");
+    expect(reportLabel("Vision Aid", { fy: null, title: "Annual Report 2025 India Final" })).toBe("Vision Aid annual report 2025");
+    expect(reportLabel("NAB", { fy: null, title: "Reports 2019 to 2024" })).toBe("NAB annual report");
   });
 });
 

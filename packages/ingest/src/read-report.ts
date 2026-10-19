@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { pagesToRead, REPORT_DONOR_KINDS, type ReportDonor } from "@ve/core";
+import { pagesToRead, REPORT_DONOR_KINDS, type ReportDonor, reportFy } from "@ve/core";
 import { PDFDocument } from "pdf-lib";
 import { extractText, getDocumentProxy } from "unpdf";
 import { z } from "zod";
@@ -23,6 +23,7 @@ const MAX_WHOLE_PAGES = 150;
 export class ReadError extends Error {}
 
 const Reading = z.object({
+  financial_year: z.string().nullable().describe("The financial year the report covers, written like 2024-25, only if these pages state it."),
   lists_donors: z.boolean().describe("False when these pages name no donors, funders, CSR partners or sponsors at all."),
   donors: z.array(
     z.object({
@@ -52,6 +53,8 @@ Leave out the NGO itself and its own units, its auditors and bankers, award juri
 List each donor once. If you can't read a logo's name with confidence, leave it out rather than guess.`;
 
 export type ReportReading = {
+  /** The financial year the report says it covers, from its cover or the pages read. */
+  fy: string | null;
   donors: ReportDonor[];
   pages: number;
   pagesRead: number[] | null;
@@ -61,7 +64,7 @@ export type ReportReading = {
 };
 
 /** The report's pages that list donors, as a smaller PDF, or the whole report when no page says so. */
-export async function donorPages(pdf: Uint8Array): Promise<{ pages: number; read: number[] | null; bytes: Uint8Array }> {
+export async function donorPages(pdf: Uint8Array): Promise<{ pages: number; read: number[] | null; bytes: Uint8Array; cover: string }> {
   let pages: number;
   let texts: string[];
   try {
@@ -72,7 +75,7 @@ export async function donorPages(pdf: Uint8Array): Promise<{ pages: number; read
   const read = pagesToRead(texts);
   if (!read) {
     if (pages > MAX_WHOLE_PAGES) throw new ReadError(`No page reads like a donor list, and the report has too many pages (${pages}) to read whole.`);
-    return { pages, read: null, bytes: pdf };
+    return { pages, read: null, bytes: pdf, cover: texts[0] ?? "" };
   }
   const source = await PDFDocument.load(pdf, { ignoreEncryption: true });
   const out = await PDFDocument.create();
@@ -81,12 +84,12 @@ export async function donorPages(pdf: Uint8Array): Promise<{ pages: number; read
     read.map((n) => n - 1),
   );
   for (const page of copied) out.addPage(page);
-  return { pages, read, bytes: await out.save() };
+  return { pages, read, bytes: await out.save(), cover: texts[0] ?? "" };
 }
 
 /** Reads the donors from a report. Throws a ReadError, whose message can be shown, when it can't. */
 export async function readReportPdf(pdf: Uint8Array, about: { ngoName: string; fy: string | null }): Promise<ReportReading> {
-  const { pages, read, bytes } = await donorPages(pdf);
+  const { pages, read, bytes, cover } = await donorPages(pdf);
   if (bytes.byteLength > MAX_SEND_BYTES) {
     throw new ReadError(`The ${read ? "pages with donors are" : "report is"} ${Math.round(bytes.byteLength / 1e6)} MB, too large to send to be read.`);
   }
@@ -143,6 +146,7 @@ export async function readReportPdf(pdf: Uint8Array, about: { ngoName: string; f
       }))
     : [];
   return {
+    fy: reportFy(cover) ?? (out.financial_year ? reportFy(out.financial_year) : null),
     donors,
     pages,
     pagesRead: read,

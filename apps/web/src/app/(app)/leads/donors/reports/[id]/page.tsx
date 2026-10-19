@@ -1,6 +1,6 @@
-import { can, donorsToAdd, formatInrShort, LEFT_OUT_REASONS, type LeftOutReason } from "@ve/core";
+import { can, donorsToAdd, formatInrShort, LEFT_OUT_REASONS, type LeftOutReason, reportLabel } from "@ve/core";
 import { db, peerReports } from "@ve/db";
-import { matchKnownDonors, readerConfigured, reportLabel } from "@ve/ingest";
+import { matchKnownDonors, readerConfigured } from "@ve/ingest";
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -31,7 +31,7 @@ async function load(id: string) {
 
 export async function generateMetadata({ params }: { params: Promise<Params> }) {
   const report = await load((await params).id);
-  return { title: report ? reportLabel(report.source.ngoName, report.fy) : "Report not found" };
+  return { title: report ? reportLabel(report.source.ngoName, report) : "Report not found" };
 }
 
 export default async function PeerReportPage({ params, searchParams }: { params: Promise<Params>; searchParams: Promise<Search> }) {
@@ -42,7 +42,7 @@ export default async function PeerReportPage({ params, searchParams }: { params:
   const report = await load((await params).id);
   if (!report) notFound();
 
-  const label = reportLabel(report.source.ngoName, report.fy);
+  const label = reportLabel(report.source.ngoName, report);
   const list = report.donorLists[0] ?? null;
   const { entries, leftOut } = donorsToAdd(report.donors);
   const matches = await matchKnownDonors(entries);

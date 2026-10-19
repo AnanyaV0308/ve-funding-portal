@@ -18,7 +18,7 @@ export type ReportLink = { url: string; text: string; fy: string | null };
 const ANNUAL_REPORT = /annual[\s_-]*(?:report|review)|yearly[\s_-]*report|(?<![a-z0-9])AR[\s_-]*(?:20)?\d{2}(?!\d)/i;
 // A "report" with a year may be an annual report ("BPA-Report-25-26.pdf"), unless it says it's another kind.
 const DATED_REPORT = /report[\s_-]*(?:20)?\d{2}(?!\d)|(?<!\d)(?:20)?\d{2}[\s_-]*report/i;
-const OTHER_REPORTS = /audit|financ|balance[\s_-]*sheet|placement|evaluation|assessment|survey|research|study|newsletter|policy|privacy|dpdp/i;
+const OTHER_REPORTS = /audit|financ|balance[\s_-]*sheet|placement|measurement|evaluation|assessment|survey|research|study|newsletter|policy|privacy|dpdp/i;
 // Filings that are never annual reports, whatever they're called.
 const FILINGS = /fcra|utili[sz]ation[\s_-]*cert|(?<![a-z0-9])(?:80g|12a)(?![a-z0-9])|form[\s_-]*(?:10|csr)/i;
 
@@ -30,6 +30,32 @@ function looksLikeAnnualReport(text: string, file: string): boolean {
   if (OTHER_REPORTS.test(file) && !ANNUAL_REPORT.test(file)) return false;
   if (ANNUAL_REPORT.test(both)) return true;
   return DATED_REPORT.test(both) && !OTHER_REPORTS.test(both);
+}
+
+// Link words that say nothing about the report, as in "READ MORE" or "Download PDF".
+const EMPTY_LINK_WORDS = /^(?:read|more|view|download|open|click|here|see|full|the|this|pdf|file|now|link|report)$/i;
+
+/** What to call a report: its link's words, unless they're empty ("Read more") or a long image description; then its file name. */
+function reportTitle(text: string, file: string): string {
+  const words = text.match(/[\p{L}\p{N}]+/gu) ?? [];
+  if (words.length && words.length <= 12 && !words.every((w) => EMPTY_LINK_WORDS.test(w))) return text;
+  const name = file
+    .replace(/\.pdf$/i, "")
+    .replace(/_+/g, " ")
+    .replace(/(?<!\d)-|-(?!\d)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return name || text.slice(0, 100) || "Annual report";
+}
+
+/**
+ * How a report is named on screen and in emails: "Saksham annual report 2023-24". Without a
+ * financial year, the one year its title gives is used, as in "Vision Aid annual report 2025".
+ */
+export function reportLabel(ngoName: string, report: { fy: string | null; title: string }): string {
+  const years = new Set([...report.title.matchAll(/(?<!\d)(20\d{2})(?!\d)/g)].map((m) => m[1]));
+  const year = report.fy ?? (years.size === 1 ? [...years][0] : null);
+  return `${ngoName} annual report${year ? ` ${year}` : ""}`;
 }
 
 /** The same report linked as http and https, or with and without "www.", is one report. */
@@ -94,11 +120,23 @@ export function reportFy(...texts: string[]): string | null {
   return null;
 }
 
-/** For putting reports newest first: the year a report's financial year ends, or the latest year it mentions. */
+function fileName(url: string): string {
+  try {
+    return decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "");
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * For putting reports newest first: the year a report's financial year ends, or else the latest
+ * year in its name. The year of the folder it was uploaded to ("uploads/2025/01/") counts only
+ * when its name has none, as an old report can be uploaded again.
+ */
 function newness(link: ReportLink): number {
   if (link.fy) return Number(link.fy.slice(0, 4)) + 1;
-  const years = [...`${link.text} ${link.url}`.matchAll(/(?<!\d)(20\d{2})(?!\d)/g)].map((m) => Number(m[1]));
-  return years.length ? Math.max(...years) : 0;
+  const latest = (s: string) => Math.max(0, ...[...s.matchAll(/(?<!\d)(20\d{2})(?!\d)/g)].map((m) => Number(m[1])));
+  return latest(`${link.text} ${fileName(link.url)}`) || latest(link.url);
 }
 
 /**
@@ -128,8 +166,10 @@ export function findReportLinks(html: string, pageUrl: string): { reports: Repor
     const file = decodeURIComponent(url.pathname.split("/").pop() ?? "");
     if (isPdf(url)) {
       // The file name's year wins over the link's, which is sometimes copied from another report.
-      if (looksLikeAnnualReport(text, file))
-        reports.push({ url: driveDownloadUrl(url) ?? url.href, text: (text || file).slice(0, 200), fy: reportFy(file, text) });
+      if (looksLikeAnnualReport(text, file)) {
+        const drive = driveDownloadUrl(url);
+        reports.push({ url: drive ?? url.href, text: reportTitle(text, drive ? "" : file), fy: reportFy(file, text) });
+      }
     } else if (url.host === base.host && url.href !== base.href && (FOLLOW_WORDS.test(text) || FOLLOW_WORDS.test(url.pathname))) {
       if (!pages.includes(url.href)) pages.push(url.href);
     }

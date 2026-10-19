@@ -9,6 +9,7 @@ import {
   isClosed,
   isLost,
   isStuck,
+  reportLabel,
   STUCK_AFTER_DAYS,
   stageLabel,
 } from "@ve/core";
@@ -76,7 +77,13 @@ export async function queueWeeklyDigest(today: string, log: (m: string) => void 
       .orderBy(desc(pursuitStageChanges.changedAt)),
     // Peer NGO reports the portal has read whose donors nobody has added or turned down yet.
     db
-      .select({ id: peerReports.id, fy: peerReports.fy, ngo: peerSources.ngoName, donors: sql<number>`jsonb_array_length(${peerReports.donors})`.mapWith(Number) })
+      .select({
+        id: peerReports.id,
+        fy: peerReports.fy,
+        title: peerReports.title,
+        ngo: peerSources.ngoName,
+        donors: sql<number>`jsonb_array_length(${peerReports.donors})`.mapWith(Number),
+      })
       .from(peerReports)
       .innerJoin(peerSources, eq(peerSources.id, peerReports.sourceId))
       .where(and(eq(peerReports.status, "ready"), sql`not exists (select 1 from donor_lists d where d.peer_report_id = ${peerReports.id})`))
@@ -131,7 +138,7 @@ export async function queueWeeklyDigest(today: string, log: (m: string) => void 
     sections.push({
       heading: `Peer NGO donor lists to check (${reports.length})`,
       items: reports.map((r) => {
-        const label = `${r.ngo} annual report${r.fy ? ` ${r.fy}` : ""}`;
+        const label = reportLabel(r.ngo, r);
         const detail = `${r.donors} ${r.donors === 1 ? "donor" : "donors"} read, waiting for someone to check and add them`;
         return { html: `${link(`${base}/leads/donors/reports/${r.id}`, label)}: ${detail}`, text: `${label}: ${detail}. ${base}/leads/donors/reports/${r.id}` };
       }),

@@ -1,6 +1,6 @@
-import { can, donorsToAdd, type FunderType, fyLabel } from "@ve/core";
+import { can, donorsToAdd, type FunderType, fyLabel, reportLabel } from "@ve/core";
 import { db, donorLists, getFitSettings, peerReports } from "@ve/db";
-import { matchKnownDonors, readerConfigured, reportLabel } from "@ve/ingest";
+import { matchKnownDonors, readerConfigured } from "@ve/ingest";
 import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { NoAccess } from "@/components/no-access";
@@ -94,13 +94,13 @@ export default async function DonorListsPage({ searchParams }: { searchParams: P
             {toCheck.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ve-line bg-white p-4">
                 <span>
-                  <span className="font-medium">{reportLabel(r.source.ngoName, r.fy)}</span>
+                  <span className="font-medium">{reportLabel(r.source.ngoName, r)}</span>
                   <span className="block text-sm text-ve-muted">
                     {r.total} {r.total === 1 ? "donor" : "donors"} read, {r.fresh} new to the portal
                   </span>
                 </span>
                 <Link href={`/leads/donors/reports/${r.id}`} className="btn btn-primary text-sm">
-                  Check<span className="sr-only"> {reportLabel(r.source.ngoName, r.fy)}</span>
+                  Check<span className="sr-only"> {reportLabel(r.source.ngoName, r)}</span>
                 </Link>
               </li>
             ))}

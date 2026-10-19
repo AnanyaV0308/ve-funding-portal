@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { donorsToAdd, findReportLinks, PEER_CHECK_DAYS, type ReportLink, reportFy, reportsToRead, uniqueReports } from "@ve/core";
+import { donorsToAdd, findReportLinks, PEER_CHECK_DAYS, type ReportLink, reportFy, reportLabel, reportsToRead, uniqueReports } from "@ve/core";
 import { db, peerReports, peerSources } from "@ve/db";
 import { and, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { saveDonorList } from "./donors";
@@ -123,6 +123,8 @@ async function readReport(report: NonNullable<Awaited<ReturnType<typeof claimNex
       .update(peerReports)
       .set({
         status: reading.donors.length ? "ready" : "no_donors",
+        // A report whose link gave no financial year takes the one it states.
+        fy: report.fy ?? reading.fy,
         donors: reading.donors,
         pages: reading.pages,
         pagesRead: reading.pagesRead,
@@ -161,9 +163,6 @@ export async function runPeerReports(log: (message: string) => void = console.lo
   await readWaitingReports(log);
 }
 
-/** The label a report's donor list gets, e.g. "Saksham annual report 2023-24". */
-export const reportLabel = (ngoName: string, fy: string | null) => `${ngoName} annual report${fy ? ` ${fy}` : ""}`;
-
 /**
  * Adds the donors read from a report, the same way as a list someone pasted. Returns null when
  * the report isn't ready, has no donors the portal adds, or its donors were already added.
@@ -179,7 +178,7 @@ export async function addReportDonors(id: string, userId: string) {
       {
         ngoName: report.source.ngoName,
         fy: report.fy,
-        sourceLabel: reportLabel(report.source.ngoName, report.fy),
+        sourceLabel: reportLabel(report.source.ngoName, report),
         sourceUrl: report.url,
         newFunderType: "company",
         entries,
