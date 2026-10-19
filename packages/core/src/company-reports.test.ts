@@ -96,6 +96,33 @@ describe("checking a PDF is the company's annual report", () => {
     });
   });
 
+  it("finds the name past an image cover, and running headers that say annual report", () => {
+    // As Mphasis's 2026 report is laid out: an image cover, a brand page, then the chairman's letter.
+    const letter = (n: number) => `ANNUAL REPORT • 2026 ${n} The quarter's results and our clients.`;
+    const pages = [
+      "",
+      "Mphasis. Powering the next-generation enterprise.",
+      "Dear Shareholder, this year Mphasis grew.",
+      "Contents",
+      "Our year",
+      letter(6),
+      letter(7),
+    ];
+    expect(checkAnnualReport(pages, "Mphasis Limited")).toEqual({ ok: true, fy: null });
+    // A notice that mentions the annual report once, deep inside, isn't one.
+    const notice = [
+      "Mphasis Limited. Notice of the 34th Annual General Meeting.",
+      "Resolutions",
+      "Explanatory statement",
+      "",
+      "",
+      "",
+      "",
+      "The Annual Report is on the website.",
+    ];
+    expect(checkAnnualReport(notice, "Mphasis Limited")).toEqual({ ok: false, reason: "Its first pages don't say it's an annual report." });
+  });
+
   it("can't check a scanned report, so lets it through", () => {
     expect(checkAnnualReport(["", " "], "Infosys Limited")).toEqual({ ok: true, fy: null });
   });

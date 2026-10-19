@@ -86,18 +86,26 @@ const squash = (s: string) =>
     .replace(/[^a-z0-9]+/g, " ")
     .trim()} `;
 
+// Covers are often images, so the name is looked for over a few pages. Some reports say what they
+// are only in their running headers ("ANNUAL REPORT • 2026"), so a header on two of the first
+// pages also counts.
+const NAME_PAGES = 5;
+const HEADER_PAGES = 30;
+
 /**
- * Checks that a PDF found on the web is this company's annual report, from the text of its first
- * pages: the company's name and the words "annual report" (or "integrated report"). Gives the
- * financial year it covers when the pages say, and a reason when it isn't the report.
+ * Checks that a PDF found on the web is this company's annual report, from the text of its pages:
+ * the company's name and the words "annual report" (or "integrated report") near the start. Gives
+ * the financial year it covers when its first pages say, and a reason when it isn't the report.
  */
-export function checkAnnualReport(firstPages: string[], companyName: string): { ok: true; fy: string | null } | { ok: false; reason: string } {
-  const text = firstPages.join("\n");
-  if (text.replace(/\s+/g, "").length < 20) return { ok: true, fy: reportFy(text) };
+export function checkAnnualReport(pageTexts: string[], companyName: string): { ok: true; fy: string | null } | { ok: false; reason: string } {
+  const first = pageTexts.slice(0, NAME_PAGES).join("\n");
+  const fy = reportFy(pageTexts.slice(0, 3).join("\n"));
+  if (first.replace(/\s+/g, "").length < 20) return { ok: true, fy };
   const key = companyNameKey(companyName);
-  if (key && !squash(text).includes(` ${key} `)) return { ok: false, reason: `Its first pages don't name ${companyName}.` };
-  if (!REPORT_WORDS.test(text)) return { ok: false, reason: "Its first pages don't say it's an annual report." };
-  return { ok: true, fy: reportFy(text) };
+  if (key && !squash(first).includes(` ${key} `)) return { ok: false, reason: `Its first pages don't name ${companyName}.` };
+  const headers = pageTexts.slice(0, HEADER_PAGES).filter((t) => REPORT_WORDS.test(t)).length;
+  if (!REPORT_WORDS.test(first) && headers < 2) return { ok: false, reason: "Its first pages don't say it's an annual report." };
+  return { ok: true, fy };
 }
 
 // ---------------------------------------------------------------------------

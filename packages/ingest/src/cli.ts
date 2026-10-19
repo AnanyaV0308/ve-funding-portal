@@ -46,7 +46,7 @@ try {
     const pdf = /^https?:\/\//.test(where) ? (await fetchPublic(where, 150e6)).body : new Uint8Array(await readFile(where));
     const { pages, texts } = await pageTexts(pdf);
     const read = csrPagesToRead(texts);
-    if (company) console.log(JSON.stringify(checkAnnualReport(texts.slice(0, 3), company)));
+    if (company) console.log(JSON.stringify(checkAnnualReport(texts, company)));
     console.log(`${(pdf.byteLength / 1e6).toFixed(1)} MB, ${pages} pages. Would read ${read ? `pages ${read.join(", ")}` : "nothing: no page reads like the CSR section"}.`);
   } else {
     throw new Error(

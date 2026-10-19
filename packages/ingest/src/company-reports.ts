@@ -122,7 +122,7 @@ export async function lookForReport(company: Company) {
       const file = await fetchPublic(found.url, MAX_REPORT_BYTES, { robots: true });
       if (!looksLikePdf(file.body)) throw new ReadError("The link found doesn't lead to a PDF.");
       const { texts } = await pageTexts(file.body);
-      const check = checkAnnualReport(texts.slice(0, 3), company.name);
+      const check = checkAnnualReport(texts, company.name);
       if (!check.ok) throw new ReadError(`The PDF found isn't its annual report. ${check.reason}`);
       if (check.fy && have.some((r) => r.fy && r.fy >= check.fy!)) message = `Found its ${check.fy} report; the portal already has that year's.`;
       else {
@@ -236,7 +236,7 @@ async function readWaitingReport(report: NonNullable<Awaited<ReturnType<typeof c
     const pdf = report.fileKey ? await readStoredBytes(report.fileKey) : (await fetchPublic(report.url!, MAX_REPORT_BYTES, { robots: true })).body;
     if (!looksLikePdf(pdf)) throw new ReadError(report.fileKey ? "The file isn't a PDF." : "The link doesn't lead to a PDF.");
     const { texts } = await pageTexts(pdf);
-    const check = checkAnnualReport(texts.slice(0, 3), report.funder.name);
+    const check = checkAnnualReport(texts, report.funder.name);
     if (!check.ok) throw new ReadError(`This doesn't look like ${report.funder.name}'s annual report. ${check.reason}`);
     return await readAndApply({ ...report, fy: report.fy ?? check.fy }, report.funder, pdf, texts);
   } catch (e) {

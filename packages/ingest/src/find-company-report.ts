@@ -14,8 +14,8 @@ import { apiProblem, READER_MODEL, ReadError, tokensUsed } from "./pdf";
 const MAX_TURNS = 4;
 
 const SYSTEM = `You find Indian listed companies' annual reports on the companies' own websites, for an NGO's fundraising portal.
-Search the web, and open the company's investor relations page where you need to. Use only links you have seen in search results or on pages you opened; never build or guess a link.
-Don't use stock exchange websites. Finish with one line, "PDF: " followed by the direct link to the report's PDF, or "PDF: none" if you couldn't find it.`;
+Search the web, and open the company's investor relations page where you need to. Listed companies also link their annual reports from their page of disclosures under Regulation 46 of the SEBI Listing Regulations. Use only links you have seen in search results or on pages you opened; never build or guess a link.
+Give the company's own full annual report: not a subsidiary's, a summary, a notice or a stock exchange filing. Don't use stock exchange websites. Finish with one line, "PDF: " followed by the direct link to the report's PDF, or "PDF: none" if you couldn't find it.`;
 
 export type FoundReport = { url: string | null; searches: number; model: string; inputTokens: number; outputTokens: number };
 
