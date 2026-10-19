@@ -201,6 +201,28 @@ describe("fit score", () => {
     expect(r.parts.find((p) => p.part === "cause")!.reason).toBe("No sector breakdown yet");
   });
 
+  it("counts an annual report's disability work and newer budget", () => {
+    const report = { fy: "2024-25", obligation: 13_000_000, disabilityWork: true };
+    const noDisability = { ...base, sectorSpend: new Map([["Education", 6_000_000], ["Health Care", 4_000_000]]) };
+    const parts = (input: FitInput) => Object.fromEntries(fitScore(input, DEFAULT_FIT_SETTINGS).parts.map((p) => [p.part, p]));
+    expect(parts(noDisability).cause!.points).toBe(18);
+    const withReport = parts({ ...noDisability, report });
+    expect(withReport.cause!.points).toBe(30);
+    expect(withReport.cause!.reason).toBe("60% of CSR spend on education and skills, and its FY 2024-25 annual report describes work on disability");
+    expect(parts({ ...base, sectorSpend: new Map(), report }).cause!.reason).toBe(
+      "No sector breakdown yet, but its FY 2024-25 annual report describes work on disability",
+    );
+    expect(parts({ ...base, sectorSpend: new Map(), report }).cause!.points).toBe(12);
+    // ₹1.3 Cr for 2024-25 against ₹1 Cr spent in 2023-24.
+    expect(withReport.timing!.reason).toBe(
+      "Spend up 25% in FY 2023-24, ₹20 L left unspent in FY 2023-24, FY 2024-25 CSR budget of ₹1.3 Cr is 30% above FY 2023-24 spend, per its annual report",
+    );
+    expect(withReport.timing!.points).toBe(10);
+    // A report for a year the portal already has, or a smaller budget, isn't a timing signal.
+    expect(parts({ ...base, report: { ...report, fy: "2023-24" } }).timing!.reason).not.toMatch(/annual report/);
+    expect(parts({ ...base, report: { ...report, obligation: 10_500_000 } }).timing!.reason).not.toMatch(/annual report/);
+  });
+
   it("matches peers on whole words", () => {
     expect(matchPeers(["NABARD"], ["NAB"])).toEqual([]);
     expect(matchPeers(["The NAB Karnataka branch"], ["NAB"])).toEqual(["NAB"]);

@@ -19,12 +19,12 @@ const html = (body: Uint8Array) => new TextDecoder().decode(body);
 export async function findReports(pageUrl: string): Promise<ReportLink[]> {
   const path = decodeURIComponent(new URL(pageUrl).pathname);
   if (/\.pdf$/i.test(path)) return [{ url: pageUrl, text: "Annual report", fy: reportFy(path.split("/").pop()!) }];
-  const page = await fetchPublic(pageUrl, MAX_PAGE_BYTES);
+  const page = await fetchPublic(pageUrl, MAX_PAGE_BYTES, { robots: true });
   const first = findReportLinks(html(page.body), page.url);
   const reports = [...first.reports];
   for (const next of first.pages) {
     try {
-      const p = await fetchPublic(next, MAX_PAGE_BYTES);
+      const p = await fetchPublic(next, MAX_PAGE_BYTES, { robots: true });
       if (p.type.includes("html")) reports.push(...findReportLinks(html(p.body), p.url).reports);
     } catch (e) {
       // A broken link elsewhere on the NGO's site doesn't stop the check.
@@ -116,7 +116,7 @@ async function claimNextReport() {
 /** Downloads and reads one report, then records what it found or why it couldn't be read. */
 async function readReport(report: NonNullable<Awaited<ReturnType<typeof claimNextReport>>>) {
   try {
-    const file = await fetchPublic(report.url, MAX_REPORT_BYTES);
+    const file = await fetchPublic(report.url, MAX_REPORT_BYTES, { robots: true });
     if (!looksLikePdf(file.body)) throw new ReadError("The link doesn't lead to a PDF.");
     const reading = await readReportPdf(file.body, { ngoName: report.source.ngoName, fy: report.fy });
     await db

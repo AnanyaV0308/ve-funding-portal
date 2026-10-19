@@ -41,8 +41,10 @@
   h3 {
     text-wrap: balance;
   }
+  /* Tailwind's reset takes underlines off links; links in running text need one, not just a colour (WCAG 1.4.1). */
   a {
     color: var(--color-ve-olive);
+    text-decoration-line: underline;
     text-decoration-color: var(--color-ve-yellow);
     text-decoration-thickness: 2px;
     text-underline-offset: 3px;
@@ -78,6 +80,7 @@
     font-weight: 500;
     cursor: pointer;
     border: 1px solid transparent;
+    text-decoration-line: none;
   }
   .btn-primary {
     background: var(--color-ve-yellow);

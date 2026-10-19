@@ -403,7 +403,12 @@ export type FitInput = {
   grantees: string[];
   ticket: number | null;
   warmPath: boolean;
+  /** What the company's newest annual report says, when the portal has read one. */
+  report?: AnnualReportFacts | null;
 };
+
+/** From a company's own annual report: the year's CSR obligation and whether it describes work on disability. */
+export type AnnualReportFacts = { fy: string; obligation: number | null; disabilityWork: boolean };
 
 export type FitPartResult = { part: FitPart; weight: number; points: number; reason: string };
 export type FitResult = { score: number; parts: FitPartResult[]; summary: string };
@@ -427,16 +432,20 @@ function scorePart(part: FitPart, input: FitInput, s: FitSettings): { fraction: 
   switch (part) {
     case "cause": {
       const total = sum(input.sectorSpend);
-      if (total === 0) return { fraction: 0, reason: "No sector breakdown yet" };
+      // An annual report that describes work on disability counts as disability spend, since the portal's data is a year or more behind.
+      const reported = input.report?.disabilityWork ? `its ${fyLabel(input.report.fy)} annual report describes work on disability` : null;
+      if (total === 0) return reported ? { fraction: 0.4, reason: `No sector breakdown yet, but ${reported}` } : { fraction: 0, reason: "No sector breakdown yet" };
       const cause = sum(input.sectorSpend, isCauseSector);
       const disability = sum(input.sectorSpend, isDisabilitySector);
-      const fraction = 0.6 * clamp01(cause / total / 0.5) + 0.4 * (disability > 0 ? 1 : 0);
-      if (cause === 0) return { fraction: 0, reason: "No spend on education, skills or disability" };
+      const fraction = 0.6 * clamp01(cause / total / 0.5) + 0.4 * (disability > 0 || reported ? 1 : 0);
+      if (cause === 0) {
+        return reported ? { fraction, reason: `No spend on education or skills, but ${reported}` } : { fraction: 0, reason: "No spend on education, skills or disability" };
+      }
       return {
         fraction,
         reason:
           `${pct(cause / total)} of CSR spend on education and skills` +
-          (disability > 0 ? `, ${formatInrShort(disability)} on disability` : ", none on disability"),
+          (disability > 0 ? `, ${formatInrShort(disability)} on disability` : reported ? `, and ${reported}` : ", none on disability"),
       };
     }
     case "peer": {
@@ -475,9 +484,14 @@ function scorePart(part: FitPart, input: FitInput, s: FitSettings): { fraction: 
       if (latest && latest.prescribed !== null && latest.prescribed > latest.spent) {
         signals.push(`${formatInrShort(latest.prescribed - latest.spent)} left unspent in ${fyLabel(latest.fy)}`);
       }
+      // A newer year's obligation from the annual report says whether there's more to give this year.
+      const r = input.report;
+      if (r && r.obligation !== null && latest && r.fy > latest.fy && latest.spent > 0 && r.obligation >= latest.spent * 1.1) {
+        signals.push(`${fyLabel(r.fy)} CSR budget of ${formatInrShort(r.obligation)} is ${pct(r.obligation / latest.spent - 1)} above ${fyLabel(latest.fy)} spend, per its annual report`);
+      }
       if (!signals.length) return { fraction: 0, reason: "No timing signals" };
       const text = signals.join(", ");
-      return { fraction: signals.length * 0.5, reason: text[0]!.toUpperCase() + text.slice(1) };
+      return { fraction: clamp01(signals.length * 0.5), reason: text[0]!.toUpperCase() + text.slice(1) };
     }
   }
 }
@@ -500,6 +514,7 @@ export function assessCompany(
     years: { fy: string; spent: number; prescribed: number | null; projectCount: number; sectors: Map<string, number>; states: Map<string, number> }[];
     grantees: { name: string; amount: number | null }[];
     warmPath: boolean;
+    report?: AnnualReportFacts | null;
   },
   recentFys: string[],
   settings: FitSettings,
@@ -523,6 +538,7 @@ export function assessCompany(
       grantees: facts.grantees.map((g) => g.name),
       ticket: ticket.amount,
       warmPath: facts.warmPath,
+      report: facts.report ?? null,
     },
     settings,
   );

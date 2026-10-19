@@ -1,4 +1,4 @@
-import { DEFAULT_FIT_SETTINGS, type FitSettings, fitSettingsProblems } from "@ve/core";
+import { DEFAULT_COMPANIES_FOLLOWED, DEFAULT_FIT_SETTINGS, type FitSettings, fitSettingsProblems, MAX_COMPANIES_FOLLOWED } from "@ve/core";
 import { eq, sql } from "drizzle-orm";
 import { db } from "./index";
 import { appSettings } from "./schema";
@@ -7,6 +7,8 @@ const FIT = "fit";
 /** When the fit settings last changed, so the worker knows to score every company again. */
 const FIT_CHANGED = "fit_changed_at";
 const FULL_RESCORE = "full_rescore_at";
+/** How many listed companies' annual reports the portal looks for. */
+const COMPANIES_FOLLOWED = "companies_followed";
 
 /** The fit-score settings, falling back to the defaults for anything missing or invalid. */
 export async function getFitSettings(): Promise<FitSettings> {
@@ -40,4 +42,15 @@ export async function fullRescoreDue(): Promise<boolean> {
 
 export async function markFullRescore(at: Date) {
   await put(FULL_RESCORE, at.toISOString(), null);
+}
+
+/** How many of the best-fitting listed companies the portal follows annual reports for. */
+export async function getCompaniesFollowed(): Promise<number> {
+  const row = await db.query.appSettings.findFirst({ where: eq(appSettings.key, COMPANIES_FOLLOWED) });
+  const n = row?.value;
+  return typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= MAX_COMPANIES_FOLLOWED ? n : DEFAULT_COMPANIES_FOLLOWED;
+}
+
+export async function saveCompaniesFollowed(n: number, userId: string) {
+  await put(COMPANIES_FOLLOWED, n, userId);
 }

@@ -1,4 +1,5 @@
 export * from "./awards";
+export * from "./company-reports";
 export * from "./csr";
 export * from "./csv";
 export * from "./donors";
@@ -6,4 +7,5 @@ export * from "./india";
 export * from "./knowledge";
 export * from "./peer-reports";
 export * from "./pipeline";
+export * from "./robots";
 export * from "./roles";

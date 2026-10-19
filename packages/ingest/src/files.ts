@@ -33,3 +33,9 @@ export async function readStoredText(key: string): Promise<string> {
   if (!KEY_PATTERN.test(key) || key.includes("..")) throw new Error("Invalid file key");
   return readFile(path.join(storageRoot(), key), "utf8");
 }
+
+/** Reads an uploaded file, such as a PDF. */
+export async function readStoredBytes(key: string): Promise<Uint8Array> {
+  if (!KEY_PATTERN.test(key) || key.includes("..")) throw new Error("Invalid file key");
+  return new Uint8Array(await readFile(path.join(storageRoot(), key)));
+}
