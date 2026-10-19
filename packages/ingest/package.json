@@ -13,7 +13,10 @@
     "seed-demo": "tsx --env-file-if-exists=../../.env src/cli.ts seed-demo",
     "peer-reports": "tsx --env-file-if-exists=../../.env src/cli.ts peer-reports",
     "find-reports": "tsx --env-file-if-exists=../../.env src/cli.ts find-reports",
-    "report-pages": "tsx --env-file-if-exists=../../.env src/cli.ts report-pages"
+    "report-pages": "tsx --env-file-if-exists=../../.env src/cli.ts report-pages",
+    "company-reports": "tsx --env-file-if-exists=../../.env src/cli.ts company-reports",
+    "company-checks": "tsx --env-file-if-exists=../../.env src/cli.ts company-checks",
+    "csr-pages": "tsx --env-file-if-exists=../../.env src/cli.ts csr-pages"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

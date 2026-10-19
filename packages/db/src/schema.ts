@@ -3,12 +3,15 @@ import {
   ALL_STAGES,
   CALL_KINDS,
   CONSENT_STATUSES,
+  type CsrPartner,
+  type DisabilityWork,
   DOCUMENT_KINDS,
   ELIGIBILITY,
   type EligibilityCheck,
   type FitPartResult,
   FUNDER_TYPES,
   KNOWLEDGE_CATEGORIES,
+  type PartnerLeftOutReason,
   type ReportDonor,
   ROLES,
   TRACKS,
@@ -219,6 +222,11 @@ export const funders = pgTable(
     ticketEstimate: bigint("ticket_estimate", { mode: "number" }),
     ticketBasis: text("ticket_basis"),
     scoredAt: timestamp("scored_at", { withTimezone: true }),
+    // Looking for a listed company's annual report on its website; see company_reports.
+    reportCheckedAt: timestamp("report_checked_at", { withTimezone: true }),
+    reportCheckRequestedAt: timestamp("report_check_requested_at", { withTimezone: true }),
+    /** What the last look found, in words, e.g. "Found its 2025-26 annual report." */
+    reportCheckResult: text("report_check_result"),
     createdAt: createdAt(),
     createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   },
@@ -367,10 +375,16 @@ export const funderGrantees = pgTable(
     sourceUrl: text("source_url"),
     /** Set when the row came from a peer NGO's donor list; removing the list removes the row. */
     donorListId: uuid("donor_list_id").references((): AnyPgColumn => donorLists.id, { onDelete: "cascade" }),
+    /** Set when the row came from the company's own annual report; reading a newer one replaces it. */
+    companyReportId: uuid("company_report_id").references((): AnyPgColumn => companyReports.id, { onDelete: "cascade" }),
     createdAt: createdAt(),
     createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   },
-  (t) => [index("funder_grantees_funder_idx").on(t.funderId), index("funder_grantees_list_idx").on(t.donorListId)],
+  (t) => [
+    index("funder_grantees_funder_idx").on(t.funderId),
+    index("funder_grantees_list_idx").on(t.donorListId),
+    index("funder_grantees_report_idx").on(t.companyReportId),
+  ],
 );
 
 /**
@@ -452,6 +466,61 @@ export const peerReports = pgTable(
     decidedBy: text("decided_by").references(() => users.id, { onDelete: "set null" }),
   },
   (t) => [uniqueIndex("peer_reports_source_url_idx").on(t.sourceId, t.url), index("peer_reports_status_idx").on(t.status)],
+);
+
+/**
+ * waiting: found, not read yet. reading: being read. read: its CSR section was read. no_csr: read,
+ * but it has no CSR section the portal could find. failed: couldn't be read.
+ */
+export const companyReportStatusEnum = pgEnum("company_report_status", ["waiting", "reading", "read", "no_csr", "failed"]);
+/** search: the portal found it on the company's website. link: someone gave its link. upload: someone uploaded the PDF. */
+export const companyReportOriginEnum = pgEnum("company_report_origin", ["search", "link", "upload"]);
+
+/**
+ * A listed company's own annual report and what its CSR section says. What's read is used
+ * straight away: the NGOs it names become funder_grantees rows, and the figures feed the fit score.
+ */
+export const companyReports = pgTable(
+  "company_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    funderId: uuid("funder_id")
+      .notNull()
+      .references(() => funders.id, { onDelete: "cascade" }),
+    origin: companyReportOriginEnum("origin").notNull(),
+    /** Where the PDF is on the web; null for an upload. */
+    url: text("url"),
+    /** The uploaded PDF in storage; null for a report on the web. */
+    fileKey: text("file_key"),
+    title: text("title").notNull(),
+    fy: text("fy"),
+    status: companyReportStatusEnum("status").notNull().default("waiting"),
+    /** Whole rupees: the year's CSR obligation, what was spent, and what went to the Unspent CSR Account. */
+    obligation: bigint("obligation", { mode: "number" }),
+    spent: bigint("spent", { mode: "number" }),
+    unspent: bigint("unspent", { mode: "number" }),
+    /** Where the company publishes its CSR policy and the projects its board approved. */
+    policyUrl: text("policy_url"),
+    /** The partners as read, before the portal's rules leave any out, and the ones they left out. */
+    partners: jsonb("partners").$type<CsrPartner[]>().notNull().default([]),
+    leftOut: jsonb("left_out").$type<{ name: string; reason: PartnerLeftOutReason }[]>().notNull().default([]),
+    disabilityWork: jsonb("disability_work").$type<DisabilityWork[]>().notNull().default([]),
+    pages: integer("pages"),
+    pagesRead: jsonb("pages_read").$type<number[] | null>(),
+    sha256: text("sha256"),
+    model: text("model"),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    error: text("error"),
+    foundAt: timestamp("found_at", { withTimezone: true }).notNull().defaultNow(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  (t) => [
+    uniqueIndex("company_reports_funder_url_idx").on(t.funderId, t.url),
+    index("company_reports_status_idx").on(t.status),
+    index("company_reports_funder_idx").on(t.funderId, t.fy),
+  ],
 );
 
 /** Settings admins change in the app, such as the fit-score weights. One JSON value per key. */
@@ -562,6 +631,7 @@ export const fundersRelations = relations(funders, ({ many }) => ({
   csrYears: many(csrYears),
   csrBreakdown: many(csrBreakdown),
   grantees: many(funderGrantees),
+  companyReports: many(companyReports),
 }));
 
 export const csrYearsRelations = relations(csrYears, ({ one }) => ({
@@ -576,6 +646,13 @@ export const csrBreakdownRelations = relations(csrBreakdown, ({ one }) => ({
 export const funderGranteesRelations = relations(funderGrantees, ({ one }) => ({
   funder: one(funders, { fields: [funderGrantees.funderId], references: [funders.id] }),
   donorList: one(donorLists, { fields: [funderGrantees.donorListId], references: [donorLists.id] }),
+  companyReport: one(companyReports, { fields: [funderGrantees.companyReportId], references: [companyReports.id] }),
+}));
+
+export const companyReportsRelations = relations(companyReports, ({ one, many }) => ({
+  funder: one(funders, { fields: [companyReports.funderId], references: [funders.id] }),
+  creator: one(users, { fields: [companyReports.createdBy], references: [users.id] }),
+  grantees: many(funderGrantees),
 }));
 
 export const donorListsRelations = relations(donorLists, ({ one, many }) => ({

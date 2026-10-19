@@ -1,5 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { robotsAllows } from "@ve/core";
 
 // Some NGO sites turn away anything that doesn't look like a browser, so this reads as one and names the portal at the end.
 const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 VEFundingPortal/1.0";
@@ -37,15 +38,54 @@ async function assertPublic(url: URL) {
   if (!addresses.length || addresses.some(isPrivateAddress)) throw new FetchError(`${url.hostname} isn't a public website.`);
 }
 
+const ROBOTS_MAX_BYTES = 500_000;
+const ROBOTS_KEEP_MS = 24 * 3_600_000;
+const robotsCache = new Map<string, { at: number; text: string | null }>();
+
 /**
- * Fetches a public web page or file, following redirects, and gives up past `maxBytes`. Errors are
- * FetchErrors whose message can be shown to people as it is.
+ * A site's robots.txt, kept for a day. Null when the site couldn't be asked, which RFC 9309 says to
+ * treat as "don't fetch anything"; a site with no robots.txt (a 4xx answer) allows everything.
  */
-export async function fetchPublic(href: string, maxBytes: number): Promise<{ url: string; type: string; body: Uint8Array }> {
+async function robotsTxt(origin: string): Promise<string | null> {
+  const kept = robotsCache.get(origin);
+  if (kept && Date.now() - kept.at < ROBOTS_KEEP_MS) return kept.text;
+  let text: string | null;
+  try {
+    const res = await fetch(`${origin}/robots.txt`, { headers: { "user-agent": USER_AGENT }, signal: AbortSignal.timeout(20_000) });
+    if (res.ok && Number(res.headers.get("content-length") ?? 0) <= ROBOTS_MAX_BYTES) text = (await res.text()).slice(0, ROBOTS_MAX_BYTES);
+    else {
+      await res.body?.cancel();
+      // No robots.txt (a 4xx) allows everything, and so does one too big to be a real one; a server error allows nothing.
+      text = res.ok || (res.status >= 400 && res.status < 500) ? "" : null;
+    }
+  } catch {
+    text = null;
+  }
+  robotsCache.set(origin, { at: Date.now(), text });
+  return text;
+}
+
+async function assertRobotsAllow(url: URL) {
+  const text = await robotsTxt(url.origin);
+  if (text === null) throw new FetchError(`${url.hostname}'s robots.txt couldn't be read, so the portal didn't fetch from it.`);
+  if (!robotsAllows(text, `${url.pathname}${url.search}`)) throw new FetchError(`${url.hostname}'s robots.txt asks automated visitors not to fetch this.`);
+}
+
+/**
+ * Fetches a public web page or file, following redirects, and gives up past `maxBytes`. With
+ * `robots`, which the worker's own fetches use, it first checks the site's robots.txt allows it.
+ * Errors are FetchErrors whose message can be shown to people as it is.
+ */
+export async function fetchPublic(
+  href: string,
+  maxBytes: number,
+  opts: { robots?: boolean } = {},
+): Promise<{ url: string; type: string; body: Uint8Array }> {
   let url = new URL(href);
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     if (url.protocol !== "https:" && url.protocol !== "http:") throw new FetchError("Only http and https links can be opened.");
     await assertPublic(url);
+    if (opts.robots) await assertRobotsAllow(url);
     let res: Response;
     try {
       res = await fetch(url, {

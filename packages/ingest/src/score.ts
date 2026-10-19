@@ -1,6 +1,6 @@
 import { assessCompany } from "@ve/core";
-import { csrBreakdown, csrYears, db, funderGrantees, funders, getFitSettings } from "@ve/db";
-import { desc, eq, inArray } from "drizzle-orm";
+import { companyReports, csrBreakdown, csrYears, db, funderGrantees, funders, getFitSettings } from "@ve/db";
+import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 
 const CHUNK = 500;
 
@@ -8,6 +8,11 @@ const CHUNK = 500;
 export async function recentFys(): Promise<string[]> {
   const rows = await db.selectDistinct({ fy: csrYears.fy }).from(csrYears).orderBy(desc(csrYears.fy)).limit(2);
   return rows.map((r) => r.fy);
+}
+
+/** What the fit score uses from a company's newest annual report that was read. */
+function newestReport(r: { fy: string | null; obligation: number | null; disabilityWork: unknown[] } | undefined) {
+  return r?.fy ? { fy: r.fy, obligation: r.obligation, disabilityWork: r.disabilityWork.length > 0 } : null;
 }
 
 /**
@@ -22,11 +27,16 @@ export async function rescoreFunders(ids?: string[]): Promise<number> {
 
   for (let i = 0; i < targets.length; i += CHUNK) {
     const chunk = targets.slice(i, i + CHUNK);
-    const [rows, years, breakdown, grantees] = await Promise.all([
+    const [rows, years, breakdown, grantees, reports] = await Promise.all([
       db.select().from(funders).where(inArray(funders.id, chunk)),
       db.select().from(csrYears).where(inArray(csrYears.funderId, chunk)),
       db.select().from(csrBreakdown).where(inArray(csrBreakdown.funderId, chunk)),
       db.select().from(funderGrantees).where(inArray(funderGrantees.funderId, chunk)),
+      db
+        .select({ funderId: companyReports.funderId, fy: companyReports.fy, obligation: companyReports.obligation, disabilityWork: companyReports.disabilityWork })
+        .from(companyReports)
+        .where(and(inArray(companyReports.funderId, chunk), eq(companyReports.status, "read"), isNotNull(companyReports.fy)))
+        .orderBy(desc(companyReports.fy)),
     ]);
     const now = new Date();
     await db.transaction(async (tx) => {
@@ -44,6 +54,7 @@ export async function rescoreFunders(ids?: string[]): Promise<number> {
               .map((y) => ({ ...y, sectors: pick(y.fy, "sector"), states: pick(y.fy, "state") })),
             grantees: grantees.filter((g) => g.funderId === f.id),
             warmPath: Boolean(f.warmPath?.trim()),
+            report: newestReport(reports.find((r) => r.funderId === f.id)),
           },
           fys,
           settings,

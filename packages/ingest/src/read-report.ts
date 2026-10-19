@@ -1,9 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { pagesToRead, REPORT_DONOR_KINDS, type ReportDonor, reportFy } from "@ve/core";
-import { PDFDocument } from "pdf-lib";
-import { extractText, getDocumentProxy } from "unpdf";
 import { z } from "zod";
+import { apiProblem, MAX_SEND_BYTES, pageTexts, pdfSubset, READER_MODEL, ReadError, tokensUsed } from "./pdf";
+
+export { READER_MODEL, ReadError, readerConfigured } from "./pdf";
 
 /**
  * Reading a peer NGO's annual report with Claude. Only the NGO's public report is sent, never
@@ -11,16 +12,8 @@ import { z } from "zod";
  * prompt: Claude lists everyone the report presents as a donor, and the rules decide.
  */
 
-export const READER_MODEL = "claude-opus-5-5";
-/** Reading needs an Anthropic API key in the environment. */
-export const readerConfigured = () => Boolean(process.env.ANTHROPIC_API_KEY);
-
-/** The Claude API takes up to 32 MB per request, and base64 makes a file a third bigger. */
-const MAX_SEND_BYTES = 22e6;
 /** A report with no text to find the donor pages by is sent whole, up to this many pages. */
 const MAX_WHOLE_PAGES = 150;
-
-export class ReadError extends Error {}
 
 const Reading = z.object({
   financial_year: z.string().nullable().describe("The financial year the report covers, written like 2024-25, only if these pages state it."),
@@ -65,27 +58,13 @@ export type ReportReading = {
 
 /** The report's pages that list donors, as a smaller PDF, or the whole report when no page says so. */
 export async function donorPages(pdf: Uint8Array): Promise<{ pages: number; read: number[] | null; bytes: Uint8Array; cover: string }> {
-  let pages: number;
-  let texts: string[];
-  try {
-    // Errors only: some reports' fonts make pdf.js print thousands of warnings, which slows reading down.
-    ({ totalPages: pages, text: texts } = await extractText(await getDocumentProxy(pdf.slice(), { verbosity: 0 }), { mergePages: false }));
-  } catch {
-    throw new ReadError("The PDF couldn't be opened. It may be damaged or password-protected.");
-  }
+  const { pages, texts } = await pageTexts(pdf);
   const read = pagesToRead(texts);
   if (!read) {
     if (pages > MAX_WHOLE_PAGES) throw new ReadError(`No page reads like a donor list, and the report has too many pages (${pages}) to read whole.`);
     return { pages, read: null, bytes: pdf, cover: texts[0] ?? "" };
   }
-  const source = await PDFDocument.load(pdf, { ignoreEncryption: true });
-  const out = await PDFDocument.create();
-  const copied = await out.copyPages(
-    source,
-    read.map((n) => n - 1),
-  );
-  for (const page of copied) out.addPage(page);
-  return { pages, read, bytes: await out.save(), cover: texts[0] ?? "" };
+  return { pages, read, bytes: await pdfSubset(pdf, read), cover: texts[0] ?? "" };
 }
 
 /** Reads the donors from a report. Throws a ReadError, whose message can be shown, when it can't. */
@@ -120,11 +99,7 @@ export async function readReportPdf(pdf: Uint8Array, about: { ngoName: string; f
   try {
     message = await stream.finalMessage();
   } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) throw new ReadError("The Anthropic API key was turned down. Check ANTHROPIC_API_KEY.");
-    if (e instanceof Anthropic.RateLimitError) throw new ReadError("The Anthropic API is busy or the account is out of credit. Try again later.");
-    if (e instanceof Anthropic.BadRequestError) throw new ReadError(`The Anthropic API couldn't read this report: ${e.message}`);
-    if (e instanceof Anthropic.APIError) throw new ReadError("The Anthropic API had a problem. Try again later.");
-    throw e;
+    apiProblem(e, "this report");
   }
   if (message.stop_reason === "refusal") throw new ReadError("The report couldn't be read (the model declined).");
   if (message.stop_reason === "max_tokens") throw new ReadError("The donor list was too long to read in one go.");
@@ -152,7 +127,6 @@ export async function readReportPdf(pdf: Uint8Array, about: { ngoName: string; f
     pages,
     pagesRead: read,
     model: message.model,
-    inputTokens: message.usage.input_tokens + (message.usage.cache_creation_input_tokens ?? 0) + (message.usage.cache_read_input_tokens ?? 0),
-    outputTokens: message.usage.output_tokens,
+    ...tokensUsed(message.usage),
   };
 }

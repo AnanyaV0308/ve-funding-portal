@@ -6,6 +6,15 @@ This repository holds **Phase 1**: the knowledge base, ranked CSR leads, the pip
 
 ## What's here so far
 
+### Step 7: companies' annual reports
+
+- **CSR leads → Company annual reports.** A listed company's annual report gives its CSR obligation, what it spent, what it moved to its Unspent CSR Account and often the NGOs that ran its projects, a year or more before the National CSR Portal. Every month, until the year's report is in, the worker looks for the newest report of the best-fitting listed companies (100 by default; admins choose up to 1,000, at an estimated ₹20 to ₹50 per company each time)
+- **Where it looks**: Claude (`claude-opus-5-5`) searches the company's own website with web search and gives a link to the PDF. The portal never fetches from NSE or BSE, whose terms don't allow automated collection, and it follows each site's robots.txt. A link is used only when the downloaded PDF's first pages name the company and say annual report
+- **What it reads**: from the PDF's text the portal picks the CSR pages (the CSR annexure, and pages that name CSR projects, CSR registration numbers or disability work) and sends only those, at most 24. Claude reads the figures, the CSR policy link, the partners with any amount, CSR registration and page, and the work on disability. Only the company's public report is sent, never VE's data
+- **What it adds**: the NGOs it names go on the company's **NGOs it funds**, each with a link to its page in the PDF, and count towards the fit score. The company's own foundation, government funds (such as PM CARES), organisations that aren't NGOs and names that don't appear in the report's text are left out, with the reason shown. A report's disability work counts as cause, and a budget well above the latest CSR Portal spend counts as timing
+- **On a company's page**: the **Annual report** section shows what the newest report says, with **Look for its newest report**, and **Add a report by hand** takes a link or an uploaded PDF, such as one downloaded from NSE or BSE by a person. Removing a report takes away the NGOs it added
+- Finding and reading need `ANTHROPIC_API_KEY`; without it, added reports wait unread and nothing is looked for
+
 ### Step 6: peer NGO donor lists, read from their annual reports
 
 - **CSR leads → Peer NGO donors.** Once a month the worker opens each peer NGO's reports page, finds its newest annual reports (PDFs whose link or file name says annual report, with the year read from names like `AR_2024-25.pdf`; audits and FCRA filings are skipped) and queues them. The first look reads the newest two; after that only newer reports
@@ -112,7 +121,20 @@ pnpm --filter @ve/ingest find-reports <page url>      # list the reports a page 
 pnpm --filter @ve/ingest report-pages <pdf url>       # which pages of a report would be read; sends nothing
 ```
 
-Reports over 150 MB aren't downloaded, and a report is read only once. One that couldn't be read says why on its page, with **Try reading it again**.
+Reports over 150 MB aren't downloaded, a site's robots.txt is followed, and a report is read only once. One that couldn't be read says why on its page, with **Try reading it again**.
+
+## Company annual reports
+
+With `ANTHROPIC_API_KEY` in `.env`, the worker looks for two due companies' reports and reads up to two waiting reports every minute. By hand:
+
+```bash
+pnpm --filter @ve/ingest company-reports              # look for a few due companies' reports, then read what's waiting
+pnpm --filter @ve/ingest company-reports "Infosys Limited"   # look for one company's report now
+pnpm --filter @ve/ingest company-checks               # look for every due company's report
+pnpm --filter @ve/ingest csr-pages <pdf url or file> "Infosys Limited"   # which pages would be read; sends nothing
+```
+
+Reports over 150 MB aren't downloaded. A report that couldn't be read says why, with **Try again**.
 
 ## Reminders and the weekly digest
 

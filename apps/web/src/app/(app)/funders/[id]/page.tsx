@@ -9,8 +9,9 @@ import {
   sortFysDesc,
   stageLabel,
 } from "@ve/core";
-import { csrBreakdown, csrYears, db, funderGrantees, funders, pursuits } from "@ve/db";
-import { asc, desc, eq } from "drizzle-orm";
+import { companyReports, csrBreakdown, csrYears, db, funderGrantees, funders, pursuits } from "@ve/db";
+import { followedCompanies, readerConfigured } from "@ve/ingest";
+import { asc, desc, eq, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EligibilityPill, FitBadge } from "@/components/eligibility-pill";
@@ -18,6 +19,7 @@ import { NoAccess } from "@/components/no-access";
 import { requireUser } from "@/lib/authz";
 import { formatDate } from "@/lib/format";
 import { deleteGrantee } from "../actions";
+import { AnnualReportSection } from "./annual-report";
 import { GranteeForm, NotesForm } from "./forms";
 
 type Params = { id: string };
@@ -32,6 +34,8 @@ async function load(id: string) {
       csrBreakdown: { orderBy: desc(csrBreakdown.amount) },
       grantees: { orderBy: [desc(funderGrantees.fy), asc(funderGrantees.name)] },
       pursuits: { orderBy: desc(pursuits.updatedAt), columns: { id: true, title: true, stage: true } },
+      // Newest year first; a report not read yet, with no year, comes after the read ones.
+      companyReports: { orderBy: [sql`${companyReports.fy} desc nulls last`, desc(companyReports.foundAt)] },
     },
   });
 }
@@ -53,6 +57,9 @@ export default async function FunderPage({ params }: { params: Promise<Params> }
   const latestYear = f.csrYears.find((y) => y.fy === latest);
   const split = (kind: "sector" | "state") => f.csrBreakdown.filter((b) => b.fy === latest && b.kind === kind).slice(0, 8);
   const state = cinState(f.cin);
+  const followed = f.type === "company" ? await followedCompanies() : [];
+  const addedByReport = new Map<string, number>();
+  for (const g of f.grantees) if (g.companyReportId) addedByReport.set(g.companyReportId, (addedByReport.get(g.companyReportId) ?? 0) + 1);
 
   return (
     <>
@@ -219,6 +226,18 @@ export default async function FunderPage({ params }: { params: Promise<Params> }
           </div>
         ) : null}
       </section>
+
+      {f.type === "company" ? (
+        <AnnualReportSection
+          funder={f}
+          reports={f.companyReports}
+          addedByReport={addedByReport}
+          followed={followed.some((c) => c.id === f.id)}
+          followedCount={followed.length}
+          readerReady={readerConfigured()}
+          canEdit={canEdit}
+        />
+      ) : null}
 
       <div className="grid gap-8 lg:grid-cols-2">
         <section aria-labelledby="grantees-heading" className="grid content-start gap-3">
