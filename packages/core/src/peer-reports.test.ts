@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { donorsToAdd, driveDownloadUrl, findReportLinks, MAX_PAGES_READ, pagesToRead, type ReportDonor, reportFy, reportsToRead } from "./peer-reports";
+import {
+  donorsToAdd,
+  driveDownloadUrl,
+  findReportLinks,
+  MAX_PAGES_READ,
+  pagesToRead,
+  type ReportDonor,
+  reportFy,
+  reportsToRead,
+  uniqueReports,
+} from "./peer-reports";
 
 const CIN = "L22210MH1995PLC084781";
 
@@ -12,12 +22,17 @@ describe("reportFy", () => {
     expect(reportFy("MJ-Annual-Report_24-25.pdf")).toBe("2024-25");
     expect(reportFy("FY24 report")).toBe("2023-24");
     expect(reportFy("XRCVC_Annual_Report_AY_2025-2026.pdf")).toBe("2025-26");
+    expect(reportFy("annual-report-2021-to-2022.pdf")).toBe("2021-22");
+    expect(reportFy("Annual Report June 2024-May 2025")).toBe("2024-25");
+    expect(reportFy("EI_Finance_Report_2024-2025.pdf")).toBe("2024-25");
   });
 
   it("doesn't guess from a year on its own, or from numbers that aren't a year pair", () => {
     expect(reportFy("Annual-Report-2025-India-Final.pdf")).toBeNull();
     expect(reportFy("Report 12-30")).toBeNull();
     expect(reportFy("version 1.24-25.3")).toBeNull();
+    expect(reportFy("EnAble_India_2023.pdf")).toBeNull();
+    expect(reportFy("Reports 2019 to 2024")).toBeNull();
     // The first text that gives a year wins.
     expect(reportFy("Annual report", "AR-2022-23.pdf")).toBe("2022-23");
   });
@@ -51,6 +66,39 @@ describe("findReportLinks", () => {
 
   it("follows report pages on the same site only, and not the page itself", () => {
     expect(pages).toEqual(["https://www.example.org/reports/"]);
+  });
+
+  it("tells annual reports from other reports by the file name first", () => {
+    // From Enable India's and NAB's report pages.
+    const found = findReportLinks(
+      `<a href="/wp-content/uploads/2025/09/EI_AR_24-25_ACCESSIBLE-1.pdf">Download</a>
+      <a href="/wp-content/uploads/2025/09/EI_Finance_Report_2024-2025.pdf">Annual report 2024-25: finances</a>
+      <a href="/wp-content/uploads/2016/03/PlacementCellReport2015.pdf">Report 2015</a>
+      <a href="/wp-content/uploads/2024/08/DPDP-Report-2024.pdf">Report 2024</a>
+      <a href="/wp-content/uploads/2023/10/EI_AR_2022-23.pdf">Annual report</a>
+      <a href="/wp-content/uploads/2022/06/annual-report-2020-to-2021.pdf"><img alt="Front Page of Annual Report 2022-2023"></a>`,
+      "https://www.enableindia.org/reports/",
+    ).reports;
+    expect(found.map((r) => [r.url.split("/").pop(), r.fy])).toEqual([
+      ["EI_AR_24-25_ACCESSIBLE-1.pdf", "2024-25"],
+      ["EI_AR_2022-23.pdf", "2022-23"],
+      // The link's year was copied from another report; the file's is right.
+      ["annual-report-2020-to-2021.pdf", "2020-21"],
+    ]);
+  });
+
+  it("lists each report once, however it's linked", () => {
+    const html = `<a href="http://www.example.org/AR-2024-25.pdf">Annual report</a>
+      <a href="https://example.org/AR-2024-25.pdf">Annual report 2024-25</a>`;
+    expect(findReportLinks(html, "https://example.org/").reports).toEqual([
+      { url: "http://www.example.org/AR-2024-25.pdf", text: "Annual report", fy: "2024-25" },
+    ]);
+    expect(
+      uniqueReports([
+        { url: "https://example.org/a.pdf", text: "Annual report", fy: null },
+        { url: "https://www.example.org/a.pdf", text: "Annual report 2023-24", fy: "2023-24" },
+      ]),
+    ).toEqual([{ url: "https://example.org/a.pdf", text: "Annual report", fy: "2023-24" }]);
   });
 
   it("turns Google Drive file links into downloads", () => {

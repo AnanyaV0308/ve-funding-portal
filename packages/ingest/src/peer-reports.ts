@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { donorsToAdd, findReportLinks, PEER_CHECK_DAYS, type ReportLink, reportFy, reportsToRead } from "@ve/core";
+import { donorsToAdd, findReportLinks, PEER_CHECK_DAYS, type ReportLink, reportFy, reportsToRead, uniqueReports } from "@ve/core";
 import { db, peerReports, peerSources } from "@ve/db";
 import { and, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { saveDonorList } from "./donors";
@@ -31,7 +31,7 @@ export async function findReports(pageUrl: string): Promise<ReportLink[]> {
       if (!(e instanceof FetchError)) throw e;
     }
   }
-  return reports;
+  return uniqueReports(reports);
 }
 
 /** Looks at one NGO's page for reports the portal hasn't seen, and notes what it found. */

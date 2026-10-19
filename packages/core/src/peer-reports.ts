@@ -14,9 +14,38 @@ export const MAX_PAGES_FOLLOWED = 6;
 
 export type ReportLink = { url: string; text: string; fy: string | null };
 
-const REPORT_WORDS = /annual[\s_-]*(?:report|review)|yearly[\s_-]*report|(?:\bAR|report)[\s_-]*(?:20)?\d{2}(?!\d)/i;
-// Reports that list no donors: audits, FCRA returns and other filings.
-const NOT_REPORTS = /audit|financial[\s_-]*statement|balance[\s_-]*sheet|fcra|utili[sz]ation|\b80g\b|\b12a\b|form[\s_-]*(?:10|csr)/i;
+// Words that make a PDF an annual report on their own. "AR" counts after an underscore too, as in "EI_AR_24-25.pdf".
+const ANNUAL_REPORT = /annual[\s_-]*(?:report|review)|yearly[\s_-]*report|(?<![a-z0-9])AR[\s_-]*(?:20)?\d{2}(?!\d)/i;
+// A "report" with a year may be an annual report ("BPA-Report-25-26.pdf"), unless it says it's another kind.
+const DATED_REPORT = /report[\s_-]*(?:20)?\d{2}(?!\d)|(?<!\d)(?:20)?\d{2}[\s_-]*report/i;
+const OTHER_REPORTS = /audit|financ|balance[\s_-]*sheet|placement|evaluation|assessment|survey|research|study|newsletter|policy|privacy|dpdp/i;
+// Filings that are never annual reports, whatever they're called.
+const FILINGS = /fcra|utili[sz]ation[\s_-]*cert|(?<![a-z0-9])(?:80g|12a)(?![a-z0-9])|form[\s_-]*(?:10|csr)/i;
+
+/** Whether a PDF link is an annual report, from its link text and file name. */
+function looksLikeAnnualReport(text: string, file: string): boolean {
+  const both = `${text} ${file}`;
+  if (FILINGS.test(both)) return false;
+  // The file name says what the file is better than the link does: "EI_Finance_Report_2024-2025.pdf" isn't an annual report.
+  if (OTHER_REPORTS.test(file) && !ANNUAL_REPORT.test(file)) return false;
+  if (ANNUAL_REPORT.test(both)) return true;
+  return DATED_REPORT.test(both) && !OTHER_REPORTS.test(both);
+}
+
+/** The same report linked as http and https, or with and without "www.", is one report. */
+const reportKey = (url: string) => url.replace(/^https?:\/\/(?:www\.)?/i, "").toLowerCase();
+
+/** Each report once, keeping the first link to it and the first year read for it. */
+export function uniqueReports(links: ReportLink[]): ReportLink[] {
+  const byKey = new Map<string, ReportLink>();
+  for (const link of links) {
+    const seen = byKey.get(reportKey(link.url));
+    if (!seen) byKey.set(reportKey(link.url), { ...link });
+    else seen.fy ??= link.fy;
+  }
+  return [...byKey.values()];
+}
+
 const FOLLOW_WORDS = /annual[\s_-]*reports?|\breports\b|publications|financials?|transparency|accountability|downloads|resources/i;
 
 const ENTITIES: Record<string, string> = { amp: "&", quot: '"', apos: "'", lt: "<", gt: ">", nbsp: " ", ndash: "–", mdash: "—" };
@@ -46,14 +75,17 @@ export function driveDownloadUrl(url: URL): string | null {
 const isPdf = (url: URL) => /\.pdf$/i.test(url.pathname) || driveDownloadUrl(url) !== null;
 
 /**
- * The financial year a report covers, from its link text or file name: "Annual Report 2023-24",
- * "AR_2023_2024.pdf", "Report_23-24" and "FY24" are all 2023-24. A year on its own isn't enough to tell.
+ * The financial year a report covers, from the first of the texts that gives one: "Annual Report
+ * 2023-24", "AR_2023_2024.pdf", "Report_23-24", "2023-to-2024", "June 2023-May 2024" and "FY24" are
+ * all 2023-24. A year on its own isn't enough to tell.
  */
 export function reportFy(...texts: string[]): string | null {
   for (const t of texts) {
     const text = t.replace(/_+/g, "-");
     const fy = normaliseFy(text);
     if (fy) return fy;
+    const years = /(?<!\d)(20\d{2})\D{1,12}?(20\d{2})(?!\d)/.exec(text);
+    if (years && Number(years[2]) === Number(years[1]) + 1) return `${years[1]}-${years[2]!.slice(2)}`;
     const pair = /(?<!\d|\d\.)(\d{2})\s*[-–]\s*(\d{2})(?!\d|\.\d)/.exec(text);
     const single = /\bFY\s*-?\s*(\d{2})(?!\d)/i.exec(text);
     const [start, end] = pair ? [Number(pair[1]), Number(pair[2])] : single ? [(Number(single[1]) + 99) % 100, Number(single[1])] : [-1, -2];
@@ -95,15 +127,14 @@ export function findReportLinks(html: string, pageUrl: string): { reports: Repor
       .trim();
     const file = decodeURIComponent(url.pathname.split("/").pop() ?? "");
     if (isPdf(url)) {
-      if ((REPORT_WORDS.test(text) || REPORT_WORDS.test(file)) && !NOT_REPORTS.test(text) && !NOT_REPORTS.test(file)) {
-        const href = driveDownloadUrl(url) ?? url.href;
-        if (!reports.some((r) => r.url === href)) reports.push({ url: href, text: text || file, fy: reportFy(text, file) });
-      }
+      // The file name's year wins over the link's, which is sometimes copied from another report.
+      if (looksLikeAnnualReport(text, file))
+        reports.push({ url: driveDownloadUrl(url) ?? url.href, text: (text || file).slice(0, 200), fy: reportFy(file, text) });
     } else if (url.host === base.host && url.href !== base.href && (FOLLOW_WORDS.test(text) || FOLLOW_WORDS.test(url.pathname))) {
       if (!pages.includes(url.href)) pages.push(url.href);
     }
   }
-  return { reports, pages: pages.slice(0, MAX_PAGES_FOLLOWED) };
+  return { reports: uniqueReports(reports), pages: pages.slice(0, MAX_PAGES_FOLLOWED) };
 }
 
 /**
@@ -111,14 +142,13 @@ export function findReportLinks(html: string, pageUrl: string): { reports: Repor
  * nothing older is read, so a site full of old reports only costs one read per new report.
  */
 export function reportsToRead(found: ReportLink[], knownUrls: Iterable<string>, limit = REPORTS_PER_NGO): ReportLink[] {
-  const known = new Set(knownUrls);
-  const unique = found.filter((r, i) => found.findIndex((o) => o.url === r.url) === i);
-  const newest = unique
+  const known = new Set([...knownUrls].map(reportKey));
+  const newest = uniqueReports(found)
     .map((r, i) => ({ r, i }))
     .sort((a, b) => newness(b.r) - newness(a.r) || a.i - b.i)
     .slice(0, limit)
     .map((x) => x.r);
-  return newest.filter((r) => !known.has(r.url));
+  return newest.filter((r) => !known.has(reportKey(r.url)));
 }
 
 // ---------------------------------------------------------------------------

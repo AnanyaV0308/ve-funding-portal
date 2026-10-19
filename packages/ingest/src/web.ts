@@ -1,7 +1,8 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
-const USER_AGENT = "Mozilla/5.0 (compatible; VisionEmpowerFundingPortal/1.0)";
+// Some NGO sites turn away anything that doesn't look like a browser, so this reads as one and names the portal at the end.
+const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 VEFundingPortal/1.0";
 const TIMEOUT_MS = 60_000;
 const MAX_REDIRECTS = 5;
 
