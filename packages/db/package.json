@@ -11,7 +11,8 @@
     "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
     "seed": "tsx --env-file-if-exists=../../.env src/seed.ts",
     "seed:knowledge": "tsx --env-file-if-exists=../../.env src/seed-knowledge.ts",
-    "seed:awards": "tsx --env-file-if-exists=../../.env src/seed-awards.ts"
+    "seed:awards": "tsx --env-file-if-exists=../../.env src/seed-awards.ts",
+    "seed:peer-sources": "tsx --env-file-if-exists=../../.env src/seed-peer-sources.ts"
   },
   "dependencies": {
     "@ve/core": "workspace:*",

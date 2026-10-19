@@ -6,6 +6,16 @@ This repository holds **Phase 1**: the knowledge base, ranked CSR leads, the pip
 
 ## What's here so far
 
+### Step 6: peer NGO donor lists, read from their annual reports
+
+- **CSR leads → Peer NGO donors.** Once a month the worker opens each peer NGO's reports page, finds its newest annual reports (PDFs whose link or file name says annual report, with the year read from names like `AR_2024-25.pdf`; audits and FCRA filings are skipped) and queues them. The first look reads the newest two; after that only newer reports
+- Each report is read by Claude (`claude-opus-5-5`). The portal first finds the pages that list donors from the PDF's text and sends only those, or the whole report when it has no text, such as a scan. Claude lists the donors, including ones shown only as logos, with any amount, CIN and page. Only the NGO's public report is sent, never VE's data. Reading needs `ANTHROPIC_API_KEY`; without it, reports are found but wait unread
+- The portal's rules (in `packages/core/src/peer-reports.ts`) then keep Indian companies and foundations, and leave out government bodies, donors registered outside India (VE has no FCRA) and individuals, saying why
+- **Donor lists to check**: someone opens each read report, sees how every donor matches the portal (on CIN, then name), with a link to its page in the PDF, and presses **Add these donors** or **Don't add them**. Nothing changes scores until then. The weekly digest lists reports waiting to be checked
+- **Where the portal looks**: the reports page for each NGO on the peer list, editable by anyone who edits leads, with when it was last looked at, what was found, and **Look now**. Links for 11 of the 13 starting peers were found on their websites (`pnpm --filter @ve/db seed:peer-sources`); Amar Jyoti has no working site and Sense International India publishes no annual report
+- **Add a list by hand**: paste a list the portal can't find on its own, one donor per line. An amount after a comma (`Tata Steel Ltd, 25 lakh`) and a CIN anywhere on the line are picked up; **Check the list** shows the matches before anything is saved
+- **Donor lists added** shows every list with its source. Removing one takes its NGO off each donor and removes the funders it added, unless someone has since added CSR data, notes or a pursuit for them
+
 ### Step 5: awards calendar, reminders and the weekly digest
 
 - **Awards calendar** of award, grant and call-for-proposals deadlines, as a **list** (open now, opening later, dates not announced, closed) and a **month** grid with the same dates listed underneath for screen readers. Filters for kind, eligibility, skipped and closed calls
@@ -61,10 +71,10 @@ This repository holds **Phase 1**: the knowledge base, ranked CSR leads, the pip
 
 ```
 apps/web        Next.js app: screens and server actions
-apps/worker     Background jobs (pg-boss): imports, rescoring, deadline reminders and the weekly digest
+apps/worker     Background jobs (pg-boss): imports, rescoring, peer NGO reports, deadline reminders and the weekly digest
 packages/core   Business rules with unit tests: roles, knowledge freshness, pipeline stages and money, CSR eligibility and fit score, award calls and reminders
 packages/db     Drizzle schema, migrations and seed data
-packages/ingest Data imports (National CSR Portal CSV) and scoring, shared by the worker, the web app and scripts
+packages/ingest Data imports (National CSR Portal CSV, peer NGO donor lists and reports) and scoring, shared by the worker, the web app and scripts
 packages/notify Deadline reminders, the weekly digest and the email outbox
 ```
 
@@ -90,6 +100,19 @@ Sign in with **Continue as demo user** and pick a role. Uploaded files are saved
 3. The worker picks it up within a minute (or run `pnpm --filter @ve/ingest run-pending`). **Recent imports** shows how many companies were read and which rows were skipped.
 
 The file needs a company name, financial year and amount spent column. CIN, prescribed amount, development sector, state and project columns are used when present.
+
+## Peer NGO annual reports
+
+Put `ANTHROPIC_API_KEY` in `.env` so the portal can read reports. Every minute the worker looks for reports pages that are due (each one monthly, or straight after **Look now**) and for reports waiting to be read. By hand:
+
+```bash
+pnpm --filter @ve/ingest peer-reports                 # look at the pages that are due, then read what's waiting
+pnpm --filter @ve/ingest peer-reports "Saksham"       # look at one NGO's page now (reads nothing)
+pnpm --filter @ve/ingest find-reports <page url>      # list the reports a page links to; saves nothing
+pnpm --filter @ve/ingest report-pages <pdf url>       # which pages of a report would be read; sends nothing
+```
+
+Reports over 150 MB aren't downloaded, and a report is read only once. One that couldn't be read says why on its page, with **Try reading it again**.
 
 ## Reminders and the weekly digest
 

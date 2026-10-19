@@ -3,17 +3,26 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "echo 'covered by packages/core unit tests and the web e2e tests'",
     "run-pending": "tsx --env-file-if-exists=../../.env src/cli.ts run-pending",
-    "seed-demo": "tsx --env-file-if-exists=../../.env src/cli.ts seed-demo"
+    "seed-demo": "tsx --env-file-if-exists=../../.env src/cli.ts seed-demo",
+    "peer-reports": "tsx --env-file-if-exists=../../.env src/cli.ts peer-reports",
+    "find-reports": "tsx --env-file-if-exists=../../.env src/cli.ts find-reports",
+    "report-pages": "tsx --env-file-if-exists=../../.env src/cli.ts report-pages"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
     "@ve/core": "workspace:*",
     "@ve/db": "workspace:*",
-    "drizzle-orm": "^0.45.4"
+    "drizzle-orm": "^0.45.4",
+    "pdf-lib": "^1.17.1",
+    "unpdf": "^1.9.0",
+    "zod": "^4.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

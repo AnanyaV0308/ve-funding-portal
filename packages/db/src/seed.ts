@@ -9,6 +9,7 @@ import { seedAwards } from "./seed-awards";
 import { seedDemoCalls } from "./seed-demo-calls";
 import { seedDemoPipeline } from "./seed-demo-pipeline";
 import { seedKnowledge } from "./seed-knowledge";
+import { seedPeerSources } from "./seed-peer-sources";
 
 const people: { name: string; email: string; roles: Role[] }[] = [
   { name: "Demo Admin", email: "admin@demo.visionempower.local", roles: ["admin"] },
@@ -36,4 +37,5 @@ await seedKnowledge();
 await seedDemoPipeline();
 await seedAwards();
 await seedDemoCalls();
+await seedPeerSources();
 process.exit(0);

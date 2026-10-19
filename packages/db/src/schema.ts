@@ -9,6 +9,7 @@ import {
   type FitPartResult,
   FUNDER_TYPES,
   KNOWLEDGE_CATEGORIES,
+  type ReportDonor,
   ROLES,
   TRACKS,
 } from "@ve/core";
@@ -364,10 +365,93 @@ export const funderGrantees = pgTable(
     amount: bigint("amount", { mode: "number" }),
     sourceLabel: text("source_label"),
     sourceUrl: text("source_url"),
+    /** Set when the row came from a peer NGO's donor list; removing the list removes the row. */
+    donorListId: uuid("donor_list_id").references((): AnyPgColumn => donorLists.id, { onDelete: "cascade" }),
     createdAt: createdAt(),
     createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   },
-  (t) => [index("funder_grantees_funder_idx").on(t.funderId)],
+  (t) => [index("funder_grantees_funder_idx").on(t.funderId), index("funder_grantees_list_idx").on(t.donorListId)],
+);
+
+/**
+ * A peer NGO's donor list, pasted from its annual report or website. Each donor becomes a
+ * funder_grantees row naming the NGO, which is what the fit score's peer part reads.
+ */
+export const donorLists = pgTable(
+  "donor_lists",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ngoName: text("ngo_name").notNull(),
+    fy: text("fy"),
+    sourceLabel: text("source_label").notNull(),
+    sourceUrl: text("source_url"),
+    newFunderType: funderTypeEnum("new_funder_type").notNull().default("company"),
+    donorCount: integer("donor_count").notNull(),
+    matchedCount: integer("matched_count").notNull(),
+    /** Funders this list added, so removing the list can take away the ones nothing else uses. */
+    createdFunderIds: jsonb("created_funder_ids").$type<string[]>().notNull().default([]),
+    /** Set when the list was read from a peer NGO's annual report rather than pasted. */
+    peerReportId: uuid("peer_report_id").references((): AnyPgColumn => peerReports.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  // A report's donors are added once, even if two people press Add at the same moment.
+  (t) => [uniqueIndex("donor_lists_peer_report_idx").on(t.peerReportId)],
+);
+
+/**
+ * Where the portal looks for each peer NGO's annual reports: a page on its website. The worker
+ * checks each page monthly, or soon after someone asks it to.
+ */
+export const peerSources = pgTable("peer_sources", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ngoName: text("ngo_name").notNull().unique(),
+  url: text("url").notNull(),
+  checkRequestedAt: timestamp("check_requested_at", { withTimezone: true }),
+  lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+  lastOk: boolean("last_ok"),
+  /** What the last check found, in words, e.g. "Found 1 new report." */
+  lastResult: text("last_result"),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
+});
+
+/**
+ * waiting: found, not read yet. ready: read, its donors wait for someone to add them. no_donors:
+ * read, but it names no donors. failed: couldn't be read. dismissed: someone chose not to add it.
+ * A report whose donors were added has a donor_lists row pointing at it.
+ */
+export const peerReportStatusEnum = pgEnum("peer_report_status", ["waiting", "reading", "ready", "no_donors", "failed", "dismissed"]);
+
+export const peerReports = pgTable(
+  "peer_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => peerSources.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    /** The link's text on the NGO's website. */
+    title: text("title").notNull(),
+    fy: text("fy"),
+    status: peerReportStatusEnum("status").notNull().default("waiting"),
+    /** The donors as read, before the portal's rules leave any out. */
+    donors: jsonb("donors").$type<ReportDonor[]>().notNull().default([]),
+    pages: integer("pages"),
+    /** The pages that were sent to be read, or null for the whole report. */
+    pagesRead: jsonb("pages_read").$type<number[] | null>(),
+    sha256: text("sha256"),
+    model: text("model"),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    error: text("error"),
+    foundAt: timestamp("found_at", { withTimezone: true }).notNull().defaultNow(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decidedBy: text("decided_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  (t) => [uniqueIndex("peer_reports_source_url_idx").on(t.sourceId, t.url), index("peer_reports_status_idx").on(t.status)],
 );
 
 /** Settings admins change in the app, such as the fit-score weights. One JSON value per key. */
@@ -491,6 +575,23 @@ export const csrBreakdownRelations = relations(csrBreakdown, ({ one }) => ({
 
 export const funderGranteesRelations = relations(funderGrantees, ({ one }) => ({
   funder: one(funders, { fields: [funderGrantees.funderId], references: [funders.id] }),
+  donorList: one(donorLists, { fields: [funderGrantees.donorListId], references: [donorLists.id] }),
+}));
+
+export const donorListsRelations = relations(donorLists, ({ one, many }) => ({
+  creator: one(users, { fields: [donorLists.createdBy], references: [users.id] }),
+  grantees: many(funderGrantees),
+  peerReport: one(peerReports, { fields: [donorLists.peerReportId], references: [peerReports.id] }),
+}));
+
+export const peerSourcesRelations = relations(peerSources, ({ many }) => ({
+  reports: many(peerReports),
+}));
+
+export const peerReportsRelations = relations(peerReports, ({ one, many }) => ({
+  source: one(peerSources, { fields: [peerReports.sourceId], references: [peerSources.id] }),
+  decider: one(users, { fields: [peerReports.decidedBy], references: [users.id] }),
+  donorLists: many(donorLists),
 }));
 
 export const dataImportsRelations = relations(dataImports, ({ one }) => ({
