@@ -10,6 +10,7 @@ export const ROBOTS_AGENT = "VEFundingPortal";
 function groups(text: string): { agents: string[]; rules: Rule[] }[] {
   const out: { agents: string[]; rules: Rule[] }[] = [];
   let current: { agents: string[]; rules: Rule[] } | null = null;
+  let afterAgent = false;
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.replace(/#.*/, "").trim();
     const m = /^([A-Za-z-]+)\s*:\s*(.*)$/.exec(line);
@@ -17,10 +18,12 @@ function groups(text: string): { agents: string[]; rules: Rule[] }[] {
     const field = m[1]!.toLowerCase();
     const value = m[2]!.trim();
     if (field === "user-agent") {
-      // Consecutive User-agent lines share the rules that follow them.
-      if (!current || current.rules.length) out.push((current = { agents: [], rules: [] }));
+      // Consecutive User-agent lines share the rules that follow them; any rule line, even an empty one, ends the list.
+      if (!current || !afterAgent) out.push((current = { agents: [], rules: [] }));
       current.agents.push(value.toLowerCase());
+      afterAgent = true;
     } else if ((field === "allow" || field === "disallow") && current) {
+      afterAgent = false;
       // An empty Disallow allows everything, so it adds no rule.
       if (value) current.rules.push({ allow: field === "allow", pattern: value });
     }

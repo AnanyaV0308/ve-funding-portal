@@ -24,4 +24,29 @@ describe("robots.txt", () => {
     expect(robotsAllows("", "/anything")).toBe(true);
     expect(robotsAllows("<html>not a robots file</html>", "/anything")).toBe(true);
   });
+
+  it("ends a group at an empty Disallow, so a bot shut out after it doesn't shut out everyone", () => {
+    const txt = "User-agent: *\nDisallow:\n\nUser-agent: GPTBot\nDisallow: /\n";
+    expect(robotsAllows(txt, "/annual-reports/")).toBe(true);
+    expect(robotsAllows(txt, "/annual-reports/", "GPTBot")).toBe(false);
+  });
+
+  it("combines every group for everyone, as WordPress sites with Yoast write them", () => {
+    const txt = [
+      "User-agent: *",
+      "Disallow: /wp-admin/",
+      "Allow: /wp-admin/admin-ajax.php",
+      "",
+      "User-agent: *",
+      "Disallow: /wp-content/uploads/wpo/wpo-plugins-tables-list.json",
+      "# START YOAST BLOCK",
+      "User-agent: *",
+      "Disallow:",
+      "Sitemap: https://example.org/sitemap_index.xml",
+      "# END YOAST BLOCK",
+    ].join("\n");
+    expect(robotsAllows(txt, "/wp-content/uploads/2025/09/Annual-Report-2024-25.pdf")).toBe(true);
+    expect(robotsAllows(txt, "/wp-admin/options.php")).toBe(false);
+    expect(robotsAllows(txt, "/wp-content/uploads/wpo/wpo-plugins-tables-list.json")).toBe(false);
+  });
 });
