@@ -200,23 +200,41 @@ export const MAX_PAGES_READ = 16;
 
 // Headings and phrases that start a list of donors, and words that appear around one.
 const DONOR_SECTION =
-  /\b(?:our|key|major|corporate|csr|funding|institutional)\s+(?:donors?|funders?|supporters?|partners?|sponsors?)\b|\bdonors?\s*(?:list|&|and)\b|\b(?:thank(?:s| you)|gratitude|grateful)\b[^.]{0,60}\b(?:donors?|supporters?|partners?|funders?)\b|\backnowledg(?:e?ments?|ing)\b|\b(?:schedule\s+of\s+|)(?:donations?|grants?)\s+received\b|\bwith\s+support\s+from\b/i;
+  /\b(?:our|key|major|corporate|csr|funding|institutional)\s+(?:donors?|funders?|supporters?|partners?|sponsors?)\b|\b(?:donors?|funders?|supporters?)\s*(?:list|&|and)\b|\blist\s+of\s+(?:donors|funders|supporters)\b|\b(?:thank(?:s| you)|gratitude|grateful)\b[^.]{0,60}\b(?:donors?|supporters?|partners?|funders?)\b|\b(?:schedule\s+of\s+|)(?:donations?|grants?)\s+received\b|\bgrants?\s+from\s+compan|\bwith\s+support\s+from\b/i;
+// "Acknowledgements" heads many donor lists, but the word also turns up in the middle of stories.
+const ACKNOWLEDGES = /\backnowledg(?:e?ments?|ing)\b/i;
 const DONOR_WORDS = /\b(?:donors?|donations?|funders?|supporters?|sponsors?|csr|grants?|contributions?)\b/gi;
+// Company name endings, including how scans misread them ("l.imited").
+const COMPANY_ENDINGS = /\b(?:l\.?td|l\.?imited|pvt|llp)\b/gi;
+/** A page naming this many companies is a list of them, such as a schedule of CSR grants, whatever its heading. */
+const COMPANY_LIST = 5;
+/** A page this short with a donor heading is probably a page of logos. */
+const SHORT_PAGE_WORDS = 250;
+
+function donorPageScore(text: string): number {
+  const companies = (text.match(COMPANY_ENDINGS) ?? []).length;
+  const words = (text.match(/\S+/g) ?? []).length;
+  const section = DONOR_SECTION.test(text) || (ACKNOWLEDGES.test(text) && (companies >= 2 || words <= SHORT_PAGE_WORDS));
+  return (section ? 10 : 0) + (companies >= COMPANY_LIST ? 10 + Math.min(companies, 30) : 0) + Math.min((text.match(DONOR_WORDS) ?? []).length, 9);
+}
 
 /**
- * Which pages of a report to send to be read: pages that start a list of donors, and the page after
- * each (lists of logos often run on with no text). When nothing reads like a donor list, for
- * example in a scanned report, the answer is null: read the whole report.
+ * Which pages of a report to send to be read: pages that start a list of donors or name many
+ * companies, the page after each (lists of logos often run on with no text) and the back cover,
+ * where supporters' logos often are. When nothing reads like a donor list, for example in a
+ * scanned report with no text, the answer is null: read the whole report.
  */
 export function pagesToRead(pageTexts: string[]): number[] | null {
   const picked = new Set<number>();
-  const scores = pageTexts.map((t) => (DONOR_SECTION.test(t) ? 10 : 0) + Math.min((t.match(DONOR_WORDS) ?? []).length, 9));
+  const scores = pageTexts.map(donorPageScore);
   const strong = scores.map((s, i) => ({ s, i })).filter((p) => p.s >= 10);
   const chosen = strong.length ? strong : scores.map((s, i) => ({ s, i })).filter((p) => p.s >= 4);
   if (!chosen.length) return null;
+  const last = pageTexts.length - 1;
   for (const { i } of chosen.sort((a, b) => b.s - a.s || a.i - b.i)) {
-    for (const page of [i, i + 1]) if (page < pageTexts.length && picked.size < MAX_PAGES_READ) picked.add(page);
+    for (const page of [i, i + 1]) if (page <= last && picked.size < (picked.has(last) ? MAX_PAGES_READ : MAX_PAGES_READ - 1)) picked.add(page);
   }
+  if (picked.size < MAX_PAGES_READ) picked.add(last);
   return [...picked].sort((a, b) => a - b).map((i) => i + 1);
 }
 

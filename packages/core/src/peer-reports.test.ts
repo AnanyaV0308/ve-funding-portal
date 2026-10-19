@@ -185,8 +185,22 @@ describe("pagesToRead", () => {
     expect(pagesToRead([filler, "", filler])).toBeNull();
   });
 
+  it("reads pages that name many companies, such as a scanned schedule of CSR grants", () => {
+    const schedule = "HID India Pvt Ltd 5,00,000 Hyundai Motor India Foundation 12,00,000 NTT DATA Services Pvt. Ltd. Bosch Limited Wipro l.imited Infosys Ltd";
+    expect(pagesToRead([filler, schedule, filler, filler, "Our donors"])).toEqual([2, 3, 5]);
+  });
+
+  it("skips a story that only mentions an acknowledgement, and reads the back cover", () => {
+    const story = `${"Meena's family had never seen a talking computer. ".repeat(40)}In acknowledgement of her work, the school made her a class leader.`;
+    const thanks = "Acknowledgements\nWe thank Triune Energy Services Private Ltd and Bosch Ltd for their support.";
+    expect(pagesToRead([filler, story, filler, thanks, filler, filler, "Supported by"])).toEqual([4, 5, 7]);
+  });
+
   it("reads at most a set number of pages", () => {
     expect(pagesToRead(Array.from({ length: 50 }, () => "Our donors"))!.length).toBe(MAX_PAGES_READ);
+    // Including when the back cover is the first donor page picked.
+    const backCoverFirst = Array.from({ length: 50 }, (_, i) => (i === 49 ? "Our donors, sponsors and funders" : i % 2 ? "Our donors" : filler));
+    expect(pagesToRead(backCoverFirst)!.length).toBe(MAX_PAGES_READ);
   });
 });
 
