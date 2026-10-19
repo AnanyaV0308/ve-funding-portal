@@ -68,7 +68,8 @@ export async function donorPages(pdf: Uint8Array): Promise<{ pages: number; read
   let pages: number;
   let texts: string[];
   try {
-    ({ totalPages: pages, text: texts } = await extractText(await getDocumentProxy(pdf.slice()), { mergePages: false }));
+    // Errors only: some reports' fonts make pdf.js print thousands of warnings, which slows reading down.
+    ({ totalPages: pages, text: texts } = await extractText(await getDocumentProxy(pdf.slice(), { verbosity: 0 }), { mergePages: false }));
   } catch {
     throw new ReadError("The PDF couldn't be opened. It may be damaged or password-protected.");
   }
