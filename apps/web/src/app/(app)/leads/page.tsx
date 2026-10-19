@@ -105,7 +105,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         </p>
         <div className="flex flex-wrap gap-3">
           <Link href="/leads/donors" className="btn btn-secondary no-underline">
-            {canImport ? "Add peer NGO donors" : "Peer NGO donors"}
+            Peer NGO donors
           </Link>
           <Link href="/leads/import" className={`btn no-underline ${canImport ? "btn-primary" : "btn-secondary"}`}>
             {canImport ? "Import CSR data" : "See imports"}

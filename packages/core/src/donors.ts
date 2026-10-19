@@ -95,7 +95,7 @@ export function readDonorLines(text: string): { entries: DonorEntry[]; problems:
 
 export type KnownFunder = { id: string; name: string; cin: string | null; type: string };
 
-export type DonorMatch = DonorEntry &
+export type DonorMatch<E extends DonorEntry = DonorEntry> = E &
   ({ match: "cin" | "name"; funder: Pick<KnownFunder, "id" | "name" | "type"> } | { match: "new"; funder: null });
 
 /**
@@ -103,7 +103,7 @@ export type DonorMatch = DonorEntry &
  * form of the name. Companies win over other funder types with the same name. Anyone not found
  * will be added as a new funder.
  */
-export function matchDonors(entries: DonorEntry[], known: KnownFunder[]): DonorMatch[] {
+export function matchDonors<E extends DonorEntry>(entries: E[], known: KnownFunder[]): DonorMatch<E>[] {
   const byCin = new Map(known.filter((f) => f.cin).map((f) => [f.cin!, f]));
   const byKey = new Map<string, KnownFunder>();
   for (const f of known) {

@@ -2,7 +2,7 @@
  * Background worker. Runs scheduled and slow jobs (imports, scoring, reminders, digests) from a
  * pg-boss queue that lives in the same Postgres as the app.
  */
-import { runPending } from "@ve/ingest";
+import { runPeerReports, runPending } from "@ve/ingest";
 import { runDigest, runReminders } from "@ve/notify";
 import { PgBoss } from "pg-boss";
 
@@ -28,6 +28,15 @@ await boss.createQueue(PENDING, { policy: "singleton" });
 await boss.schedule(PENDING, "* * * * *", {}, { tz: "Asia/Kolkata" });
 await boss.work(PENDING, async () => {
   await runPending((m) => console.log(`[worker] ${m}`));
+});
+
+// Peer NGOs' annual reports: each NGO's page is checked monthly (or soon after someone presses
+// Check now), and new reports are read a few at a time. Reading needs ANTHROPIC_API_KEY.
+const PEER_REPORTS = "peer-reports";
+await boss.createQueue(PEER_REPORTS, { policy: "singleton" });
+await boss.schedule(PEER_REPORTS, "* * * * *", {}, { tz: "Asia/Kolkata" });
+await boss.work(PEER_REPORTS, async () => {
+  await runPeerReports((m) => console.log(`[worker] ${m}`));
 });
 
 // Award and grant deadline reminders every morning, and the weekly digest on Monday mornings.

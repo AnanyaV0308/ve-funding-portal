@@ -1,4 +1,4 @@
-import { type DonorMatch, type DonorProblem, type FunderType, matchDonors, readDonorLines } from "@ve/core";
+import { type DonorEntry, type DonorMatch, type DonorProblem, type FunderType, matchDonors, readDonorLines } from "@ve/core";
 import { db, donorLists, funderGrantees, funders } from "@ve/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { rescoreFunders } from "./score";
@@ -8,17 +8,22 @@ export type DonorListInput = {
   fy: string | null;
   sourceLabel: string;
   sourceUrl: string | null;
+  /** What donors the portal doesn't know yet are added as, unless a donor says its own type. */
   newFunderType: FunderType;
-  text: string;
-};
+} & ({ text: string } | { entries: (DonorEntry & { type?: FunderType })[]; peerReportId: string });
 
 export type DonorPreview = { matches: DonorMatch[]; problems: DonorProblem[] };
+
+/** Finds each donor among the funders already in the portal. Writes nothing. */
+export async function matchKnownDonors<E extends DonorEntry>(entries: E[]): Promise<DonorMatch<E>[]> {
+  const known = await db.select({ id: funders.id, name: funders.name, cin: funders.cin, type: funders.type }).from(funders);
+  return matchDonors(entries, known);
+}
 
 /** Reads the pasted list and finds each donor among the funders already in the portal. Writes nothing. */
 export async function previewDonorList(text: string): Promise<DonorPreview> {
   const { entries, problems } = readDonorLines(text);
-  const known = await db.select({ id: funders.id, name: funders.name, cin: funders.cin, type: funders.type }).from(funders);
-  return { matches: matchDonors(entries, known), problems };
+  return { matches: await matchKnownDonors(entries), problems };
 }
 
 /**
@@ -27,7 +32,8 @@ export async function previewDonorList(text: string): Promise<DonorPreview> {
  * isn't recorded twice.
  */
 export async function saveDonorList(input: DonorListInput, userId: string) {
-  const { matches } = await previewDonorList(input.text);
+  const matches: DonorMatch<DonorEntry & { type?: FunderType }>[] =
+    "text" in input ? (await previewDonorList(input.text)).matches : await matchKnownDonors(input.entries);
   const result = await db.transaction(async (tx) => {
     const names = new Set((await tx.select({ name: funders.name }).from(funders)).map((f) => f.name.toLowerCase()));
     const created: string[] = [];
@@ -40,7 +46,7 @@ export async function saveDonorList(input: DonorListInput, userId: string) {
         names.add(name.toLowerCase());
         const [row] = await tx
           .insert(funders)
-          .values({ name, type: input.newFunderType, cin: m.cin, createdBy: userId })
+          .values({ name, type: m.type ?? input.newFunderType, cin: m.cin, createdBy: userId })
           .returning({ id: funders.id });
         funderId = row!.id;
         created.push(funderId);
@@ -58,6 +64,7 @@ export async function saveDonorList(input: DonorListInput, userId: string) {
         donorCount: donorIds.length,
         matchedCount: donorIds.length - created.length,
         createdFunderIds: created,
+        peerReportId: "peerReportId" in input ? input.peerReportId : null,
         createdBy: userId,
       })
       .returning({ id: donorLists.id });

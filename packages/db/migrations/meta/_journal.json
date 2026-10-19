@@ -43,6 +43,13 @@
       "when": 1792341076873,
       "tag": "0005_closed_ink",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792384438489,
+      "tag": "0006_mean_franklin_storm",
+      "breakpoints": true
     }
   ]
 }

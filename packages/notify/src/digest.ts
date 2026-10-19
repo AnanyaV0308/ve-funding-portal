@@ -12,7 +12,7 @@ import {
   STUCK_AFTER_DAYS,
   stageLabel,
 } from "@ve/core";
-import { db, funders, opportunities, pursuits, pursuitStageChanges, users } from "@ve/db";
+import { db, funders, opportunities, peerReports, peerSources, pursuits, pursuitStageChanges, users } from "@ve/db";
 import { and, desc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
 import { queueEmail } from "./outbox";
 import { loadPeople } from "./people";
@@ -35,7 +35,7 @@ export async function queueWeeklyDigest(today: string, log: (m: string) => void 
   const base = appUrl();
   const now = new Date(`${today}T08:00:00+05:30`);
 
-  const [leads, deadlines, open, wins] = await Promise.all([
+  const [leads, deadlines, open, wins, reports] = await Promise.all([
     db
       .select({ id: funders.id, name: funders.name, fitScore: funders.fitScore, fitSummary: funders.fitSummary })
       .from(funders)
@@ -74,10 +74,17 @@ export async function queueWeeklyDigest(today: string, log: (m: string) => void 
       .innerJoin(funders, eq(funders.id, pursuits.funderId))
       .where(and(inArray(pursuitStageChanges.toStage, WON_STAGES), gte(pursuitStageChanges.changedAt, sql`${now.toISOString()}::timestamptz - interval '7 days'`)))
       .orderBy(desc(pursuitStageChanges.changedAt)),
+    // Peer NGO reports the portal has read whose donors nobody has added or turned down yet.
+    db
+      .select({ id: peerReports.id, fy: peerReports.fy, ngo: peerSources.ngoName, donors: sql<number>`jsonb_array_length(${peerReports.donors})`.mapWith(Number) })
+      .from(peerReports)
+      .innerJoin(peerSources, eq(peerSources.id, peerReports.sourceId))
+      .where(and(eq(peerReports.status, "ready"), sql`not exists (select 1 from donor_lists d where d.peer_report_id = ${peerReports.id})`))
+      .orderBy(peerReports.readAt),
   ]);
   const stuck = open.filter((p) => isStuck(p.stage, p.stageChangedAt, now)).sort((a, b) => a.stageChangedAt.getTime() - b.stageChangedAt.getTime());
 
-  if (!leads.length && !deadlines.length && !stuck.length && !wins.length) {
+  if (!leads.length && !deadlines.length && !stuck.length && !wins.length && !reports.length) {
     log(`Nothing for the weekly digest of ${today}`);
     return 0;
   }
@@ -120,6 +127,16 @@ export async function queueWeeklyDigest(today: string, log: (m: string) => void 
       }),
     },
   ];
+  if (reports.length) {
+    sections.push({
+      heading: `Peer NGO donor lists to check (${reports.length})`,
+      items: reports.map((r) => {
+        const label = `${r.ngo} annual report${r.fy ? ` ${r.fy}` : ""}`;
+        const detail = `${r.donors} ${r.donors === 1 ? "donor" : "donors"} read, waiting for someone to check and add them`;
+        return { html: `${link(`${base}/leads/donors/reports/${r.id}`, label)}: ${detail}`, text: `${label}: ${detail}. ${base}/leads/donors/reports/${r.id}` };
+      }),
+    });
+  }
   const title = `VE funding, week of ${formatDay(weekStart(today))}`;
   const { html, text } = layout({
     title,
@@ -132,6 +149,7 @@ export async function queueWeeklyDigest(today: string, log: (m: string) => void 
     deadlines.length ? `${deadlines.length} ${deadlines.length === 1 ? "deadline" : "deadlines"}` : null,
     stuck.length ? `${stuck.length} stuck` : null,
     wins.length ? `${wins.length} ${wins.length === 1 ? "win" : "wins"}` : null,
+    reports.length ? `${reports.length} donor ${reports.length === 1 ? "list" : "lists"} to check` : null,
   ].filter(Boolean);
 
   const people = (await loadPeople()).filter((p) => p.digestEmails && p.can("pipeline:view"));

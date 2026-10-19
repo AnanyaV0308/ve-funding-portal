@@ -20,7 +20,7 @@ test("an associate pastes a peer NGO's donors, checks the matches, saves and rem
 
   await signInAs(page, "Associate");
   await page.goto("/leads");
-  await page.getByRole("link", { name: "Add peer NGO donors" }).click();
+  await page.getByRole("link", { name: "Peer NGO donors" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Peer NGO donors" })).toBeVisible();
   await expectNoAxeViolations(page);
 
@@ -92,7 +92,7 @@ test("viewers can see donor lists but not add or remove them", async ({ page }) 
   await page.goto("/leads");
   await page.getByRole("link", { name: "Peer NGO donors" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Peer NGO donors" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Add a donor list" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Add a list by hand" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Remove/ })).toHaveCount(0);
   await expectNoAxeViolations(page);
 });
