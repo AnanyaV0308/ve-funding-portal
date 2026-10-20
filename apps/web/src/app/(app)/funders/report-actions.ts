@@ -1,8 +1,17 @@
 "use server";
 
 import { MAX_COMPANIES_FOLLOWED, onExchangeSite } from "@ve/core";
-import { auditLog, companyReports, db, saveCompaniesFollowed } from "@ve/db";
-import { addCompanyReport, removeCompanyReport, requestReportCheck, retryCompanyReport } from "@ve/ingest";
+import { auditLog, companyReports, csrPlans, db, saveCompaniesFollowed } from "@ve/db";
+import {
+  addCompanyReport,
+  addCsrPlan,
+  removeCompanyReport,
+  removeCsrPlan,
+  requestPlanCheck,
+  requestReportCheck,
+  retryCompanyReport,
+  retryCsrPlan,
+} from "@ve/ingest";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -24,7 +33,7 @@ const EXCHANGE_MESSAGE = "The portal doesn't fetch from NSE or BSE, whose terms 
 
 function refresh(funderId: string) {
   revalidatePath(`/funders/${funderId}`);
-  revalidatePath("/leads/company-reports");
+  revalidatePath("/leads/followed");
 }
 
 /** Asks the worker to look for a company's newest annual report on its next run. */
@@ -137,9 +146,110 @@ export async function removeReport(formData: FormData): Promise<void> {
   revalidatePath("/leads");
 }
 
+// ---------------------------------------------------------------------------
+// CSR action plans
+// ---------------------------------------------------------------------------
+
+/** Asks the worker to look for a company's CSR action plan on its next run. */
+export async function lookForPlan(formData: FormData): Promise<void> {
+  const user = await requirePermission("leads:edit");
+  const id = z.uuid().parse(formData.get("funderId"));
+  await requestPlanCheck(id);
+  await db.insert(auditLog).values({ actorId: user.id, action: "csr_plan.look_requested", targetType: "funder", targetId: id });
+  refresh(id);
+}
+
+/** Queues a plan someone has the link to: a PDF or a web page on the company's site. */
+export async function addPlanLink(_prev: ReportFormState, formData: FormData): Promise<ReportFormState> {
+  const auth = await editor();
+  if ("error" in auth) return auth.error;
+  const url = String(formData.get("url") ?? "");
+  const parsed = linkInput.safeParse({ funderId: formData.get("funderId"), url });
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]!.message, values: { url } };
+  if (onExchangeSite(new URL(parsed.data.url))) return { ok: false, message: EXCHANGE_MESSAGE, values: { url } };
+  const row = await addCsrPlan(parsed.data.funderId, { url: parsed.data.url }, auth.user.id);
+  if (!row) return { ok: false, message: "The portal already has this plan.", values: { url } };
+  await db.insert(auditLog).values({
+    actorId: auth.user.id,
+    action: "csr_plan.link_added",
+    targetType: "funder",
+    targetId: parsed.data.funderId,
+    detail: { url: parsed.data.url },
+  });
+  refresh(parsed.data.funderId);
+  return { ok: true, message: "Added. The portal will read it in the next few minutes.", values: { url: "" } };
+}
+
+/** Step one of uploading a plan: a signed link the browser sends the PDF to. */
+export async function startPlanUpload(
+  input: z.infer<typeof startInput>,
+): Promise<{ ok: false; message: string } | { ok: true; key: string; uploadUrl: string }> {
+  const auth = await editor();
+  if ("error" in auth) return auth.error;
+  const parsed = startInput.safeParse(input);
+  if (!parsed.success || !/\.pdf$/i.test(parsed.data.fileName)) return { ok: false, message: "Choose the action plan's PDF." };
+  if (parsed.data.size > MAX_UPLOAD_BYTES) return { ok: false, message: "Files can be up to 50 MB." };
+  const key = newKey(parsed.data.fileName);
+  return { ok: true, key, uploadUrl: createUploadUrl(key) };
+}
+
+/** Step two: record the uploaded plan so the worker reads it. */
+export async function recordPlanUpload(input: z.infer<typeof recordInput>): Promise<{ ok: boolean; message: string }> {
+  const auth = await editor();
+  if ("error" in auth) return auth.error;
+  const parsed = recordInput.safeParse(input);
+  if (!parsed.success || !isValidKey(parsed.data.key)) return { ok: false, message: "That upload couldn't be saved. Try again." };
+  if ((await storedSize(parsed.data.key)) === null) return { ok: false, message: "The file didn't finish uploading. Try again." };
+  const row = await addCsrPlan(parsed.data.funderId, { fileKey: parsed.data.key, fileName: parsed.data.fileName }, auth.user.id);
+  if (!row) return { ok: false, message: "That company no longer exists." };
+  await db.insert(auditLog).values({
+    actorId: auth.user.id,
+    action: "csr_plan.uploaded",
+    targetType: "funder",
+    targetId: parsed.data.funderId,
+    detail: { fileName: parsed.data.fileName },
+  });
+  refresh(parsed.data.funderId);
+  return { ok: true, message: "Uploaded. The portal will read it in the next few minutes." };
+}
+
+async function planFunder(id: string) {
+  const row = await db.query.csrPlans.findFirst({ where: eq(csrPlans.id, id), columns: { funderId: true, title: true } });
+  return row ?? null;
+}
+
+/** Puts a plan that couldn't be read back in the queue. */
+export async function retryPlanRead(formData: FormData): Promise<void> {
+  const user = await requirePermission("leads:edit");
+  const id = z.uuid().parse(formData.get("id"));
+  const plan = await planFunder(id);
+  if (plan && (await retryCsrPlan(id))) {
+    await db.insert(auditLog).values({ actorId: user.id, action: "csr_plan.retried", targetType: "csr_plan", targetId: id });
+    refresh(plan.funderId);
+  }
+}
+
+/** Removes a plan and the NGOs it added. */
+export async function removePlan(formData: FormData): Promise<void> {
+  const user = await requirePermission("leads:edit");
+  const id = z.uuid().parse(formData.get("id"));
+  const plan = await planFunder(id);
+  if (!plan) return;
+  await removeCsrPlan(id);
+  await db.insert(auditLog).values({
+    actorId: user.id,
+    action: "csr_plan.removed",
+    targetType: "funder",
+    targetId: plan.funderId,
+    detail: { title: plan.title },
+  });
+  refresh(plan.funderId);
+  revalidatePath("/leads");
+}
+
 export type FollowFormState = { ok: boolean; message: string; value?: string } | null;
 
-/** How many of the best-fitting listed companies the portal follows. Admins only, since each look costs money. */
+/** How many of the best-fitting companies the portal follows. Admins only, since each look costs money. */
 export async function saveFollowed(_prev: FollowFormState, formData: FormData): Promise<FollowFormState> {
   let user;
   try {
@@ -155,10 +265,10 @@ export async function saveFollowed(_prev: FollowFormState, formData: FormData): 
   }
   await saveCompaniesFollowed(n, user.id);
   await db.insert(auditLog).values({ actorId: user.id, action: "settings.companies_followed", targetType: "app_settings", detail: { count: n } });
-  revalidatePath("/leads/company-reports");
+  revalidatePath("/leads/followed");
   return {
     ok: true,
-    message: n ? `Saved. The portal follows the ${n} best-fitting listed companies.` : "Saved. The portal won't look for reports on its own.",
+    message: n ? `Saved. The portal follows the ${n} best-fitting companies.` : "Saved. The portal won't look for reports or plans on its own.",
     value,
   };
 }

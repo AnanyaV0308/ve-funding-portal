@@ -12,6 +12,7 @@ import {
   FUNDER_TYPES,
   KNOWLEDGE_CATEGORIES,
   type PartnerLeftOutReason,
+  type PlanProject,
   type ReportDonor,
   ROLES,
   TRACKS,
@@ -227,6 +228,12 @@ export const funders = pgTable(
     reportCheckRequestedAt: timestamp("report_check_requested_at", { withTimezone: true }),
     /** What the last look found, in words, e.g. "Found its 2025-26 annual report." */
     reportCheckResult: text("report_check_result"),
+    // Looking for the company's CSR action plan on its website; see csr_plans.
+    planCheckedAt: timestamp("plan_checked_at", { withTimezone: true }),
+    planCheckRequestedAt: timestamp("plan_check_requested_at", { withTimezone: true }),
+    planCheckResult: text("plan_check_result"),
+    /** The company's CSR policy on its website, as the finder gave it. */
+    csrPolicyUrl: text("csr_policy_url"),
     createdAt: createdAt(),
     createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   },
@@ -377,6 +384,8 @@ export const funderGrantees = pgTable(
     donorListId: uuid("donor_list_id").references((): AnyPgColumn => donorLists.id, { onDelete: "cascade" }),
     /** Set when the row came from the company's own annual report; reading a newer one replaces it. */
     companyReportId: uuid("company_report_id").references((): AnyPgColumn => companyReports.id, { onDelete: "cascade" }),
+    /** Set when the row came from the company's CSR action plan; reading the plan again replaces it. */
+    csrPlanId: uuid("csr_plan_id").references((): AnyPgColumn => csrPlans.id, { onDelete: "cascade" }),
     createdAt: createdAt(),
     createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   },
@@ -384,6 +393,7 @@ export const funderGrantees = pgTable(
     index("funder_grantees_funder_idx").on(t.funderId),
     index("funder_grantees_list_idx").on(t.donorListId),
     index("funder_grantees_report_idx").on(t.companyReportId),
+    index("funder_grantees_plan_idx").on(t.csrPlanId),
   ],
 );
 
@@ -523,6 +533,57 @@ export const companyReports = pgTable(
   ],
 );
 
+/**
+ * waiting: found, not read yet. reading: being read. read: its projects were read. not_plan: read,
+ * but it isn't a CSR action plan. failed: couldn't be read.
+ */
+export const csrPlanStatusEnum = pgEnum("csr_plan_status", ["waiting", "reading", "read", "not_plan", "failed"]);
+
+/**
+ * A company's CSR annual action plan: the projects its board approved for the year. What's read is
+ * used straight away: the agencies it names become funder_grantees rows, and the projects feed the
+ * fit score.
+ */
+export const csrPlans = pgTable(
+  "csr_plans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    funderId: uuid("funder_id")
+      .notNull()
+      .references(() => funders.id, { onDelete: "cascade" }),
+    origin: companyReportOriginEnum("origin").notNull(),
+    /** Where the plan is on the web, as a PDF or a web page; null for an upload. */
+    url: text("url"),
+    /** The uploaded PDF in storage; null for a plan on the web. */
+    fileKey: text("file_key"),
+    title: text("title").notNull(),
+    fy: text("fy"),
+    status: csrPlanStatusEnum("status").notNull().default("waiting"),
+    /** Whole rupees: what the plan allocates for the year, as it states it. */
+    budget: bigint("budget", { mode: "number" }),
+    policyUrl: text("policy_url"),
+    projects: jsonb("projects").$type<PlanProject[]>().notNull().default([]),
+    /** The agencies as read, before the portal's rules leave any out, and the ones they left out. */
+    partners: jsonb("partners").$type<CsrPartner[]>().notNull().default([]),
+    leftOut: jsonb("left_out").$type<{ name: string; reason: PartnerLeftOutReason }[]>().notNull().default([]),
+    /** Pages of a PDF; null for a web page. */
+    pages: integer("pages"),
+    sha256: text("sha256"),
+    model: text("model"),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    error: text("error"),
+    foundAt: timestamp("found_at", { withTimezone: true }).notNull().defaultNow(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  (t) => [
+    uniqueIndex("csr_plans_funder_url_idx").on(t.funderId, t.url),
+    index("csr_plans_status_idx").on(t.status),
+    index("csr_plans_funder_idx").on(t.funderId, t.fy),
+  ],
+);
+
 /** Settings admins change in the app, such as the fit-score weights. One JSON value per key. */
 export const appSettings = pgTable("app_settings", {
   key: text("key").primaryKey(),
@@ -632,6 +693,7 @@ export const fundersRelations = relations(funders, ({ many }) => ({
   csrBreakdown: many(csrBreakdown),
   grantees: many(funderGrantees),
   companyReports: many(companyReports),
+  csrPlans: many(csrPlans),
 }));
 
 export const csrYearsRelations = relations(csrYears, ({ one }) => ({
@@ -647,11 +709,18 @@ export const funderGranteesRelations = relations(funderGrantees, ({ one }) => ({
   funder: one(funders, { fields: [funderGrantees.funderId], references: [funders.id] }),
   donorList: one(donorLists, { fields: [funderGrantees.donorListId], references: [donorLists.id] }),
   companyReport: one(companyReports, { fields: [funderGrantees.companyReportId], references: [companyReports.id] }),
+  csrPlan: one(csrPlans, { fields: [funderGrantees.csrPlanId], references: [csrPlans.id] }),
 }));
 
 export const companyReportsRelations = relations(companyReports, ({ one, many }) => ({
   funder: one(funders, { fields: [companyReports.funderId], references: [funders.id] }),
   creator: one(users, { fields: [companyReports.createdBy], references: [users.id] }),
+  grantees: many(funderGrantees),
+}));
+
+export const csrPlansRelations = relations(csrPlans, ({ one, many }) => ({
+  funder: one(funders, { fields: [csrPlans.funderId], references: [funders.id] }),
+  creator: one(users, { fields: [csrPlans.createdBy], references: [users.id] }),
   grantees: many(funderGrantees),
 }));
 

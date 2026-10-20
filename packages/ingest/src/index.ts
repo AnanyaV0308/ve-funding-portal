@@ -11,4 +11,5 @@ export {
   retryCompanyReport,
   runCompanyReports,
 } from "./company-reports";
+export { addCsrPlan, removeCsrPlan, requestPlanCheck, retryCsrPlan, runCsrPlans } from "./csr-plans";
 export { readerConfigured } from "./read-report";

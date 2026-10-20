@@ -138,26 +138,27 @@ test("admins choose how many companies the portal follows", async ({ page }) => 
 
   await signInAs(page, "Associate");
   await page.goto("/leads");
-  await page.getByRole("link", { name: "Company annual reports" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Company annual reports" })).toBeVisible();
+  await page.getByRole("link", { name: "Companies followed" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Companies followed" })).toBeVisible();
   await expect(page.getByRole("spinbutton", { name: "Companies to follow" })).toHaveCount(0);
 
   await page.context().clearCookies();
   await signInAs(page, "Admin");
-  await page.goto("/leads/company-reports");
+  await page.goto("/leads/followed");
   const count = page.getByRole("spinbutton", { name: "Companies to follow" });
   await count.fill("1001");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Enter a whole number" })).toBeVisible();
   await count.fill("1000");
   await page.getByRole("button", { name: "Save" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Saved. The portal follows the 1000 best-fitting listed companies." })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Saved. The portal follows the 1000 best-fitting companies." })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("table").getByRole("link", { name })).toBeVisible();
   await expectNoAxeViolations(page);
 
   await count.fill("0");
   await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Saved. The portal won't look for reports or plans on its own." })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("table")).toHaveCount(0);
 });

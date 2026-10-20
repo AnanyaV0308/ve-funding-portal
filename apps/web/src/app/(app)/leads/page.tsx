@@ -95,7 +95,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     <>
       <PageHeader
         title="CSR leads"
-        intro="Indian companies ranked by how well they fit VE, from National CSR Portal data, peer NGO donor lists, companies' own annual reports and what VE has added. Open a company to see why it scored what it did."
+        intro="Indian companies ranked by how well they fit VE, from National CSR Portal data, peer NGO donor lists, companies' own annual reports and CSR action plans, and what VE has added. Open a company to see why it scored what it did."
       />
 
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -107,8 +107,8 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           <Link href="/leads/donors" className="btn btn-secondary no-underline">
             Peer NGO donors
           </Link>
-          <Link href="/leads/company-reports" className="btn btn-secondary no-underline">
-            Company annual reports
+          <Link href="/leads/followed" className="btn btn-secondary no-underline">
+            Companies followed
           </Link>
           <Link href="/leads/import" className={`btn no-underline ${canImport ? "btn-primary" : "btn-secondary"}`}>
             {canImport ? "Import CSR data" : "See imports"}

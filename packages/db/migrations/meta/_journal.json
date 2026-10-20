@@ -57,6 +57,13 @@
       "when": 1792424330935,
       "tag": "0007_chunky_vision",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792470083017,
+      "tag": "0008_slim_virginia_dare",
+      "breakpoints": true
     }
   ]
 }

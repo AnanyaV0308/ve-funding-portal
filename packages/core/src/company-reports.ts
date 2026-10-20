@@ -6,10 +6,10 @@
 
 import type { Eligibility } from "./csr";
 import { companyNameKey } from "./donors";
-import { cinIsListed } from "./india";
+import { isValidCin } from "./india";
 import { reportFy } from "./peer-reports";
 
-/** How many of the best-fitting listed companies the portal follows until an admin changes it. */
+/** How many of the best-fitting companies the portal follows until an admin changes it. */
 export const DEFAULT_COMPANIES_FOLLOWED = 100;
 export const MAX_COMPANIES_FOLLOWED = 1000;
 /** How often the portal looks for a company's report while the year's report isn't in yet. */
@@ -32,12 +32,13 @@ export function dueReportFy(today: Date): string {
 export type FollowCandidate = { id: string; name: string; cin: string | null; isForeign: boolean; eligibility: Eligibility | null; fitScore: number | null };
 
 /**
- * The companies whose reports the portal looks for: listed Indian companies that aren't ruled out,
- * best fit first. A CIN starting with L is what says a company is listed.
+ * The companies the portal follows, looking for their CSR action plans and, for listed ones (a CIN
+ * starting with L), their annual reports: Indian companies with a CIN that aren't ruled out, best
+ * fit first.
  */
 export function companiesToFollow<T extends FollowCandidate>(funders: T[], limit: number): T[] {
   return funders
-    .filter((f) => cinIsListed(f.cin) && !f.isForeign && f.eligibility !== "not_eligible")
+    .filter((f) => isValidCin(f.cin) && !f.isForeign && f.eligibility !== "not_eligible")
     .sort((a, b) => (b.fitScore ?? -1) - (a.fitScore ?? -1) || a.name.localeCompare(b.name))
     .slice(0, Math.max(0, limit));
 }
@@ -62,11 +63,12 @@ export const EXCHANGE_SITES = ["nseindia.com", "bseindia.com"];
 export const onExchangeSite = (url: URL) => EXCHANGE_SITES.some((d) => url.hostname === d || url.hostname.endsWith(`.${d}`));
 
 /**
- * The link on the last "PDF: <link>" line of the finder's reply. Null for "PDF: none", for no such
- * line, and for anything that isn't a web link or is on a stock exchange's website.
+ * The link on the last "<label>: <link>" line of the finder's reply, such as "PDF: https://…". Null
+ * for "PDF: none", for no such line, and for anything that isn't a web link or is on a stock
+ * exchange's website.
  */
-export function reportLinkFromReply(reply: string): string | null {
-  const lines = [...reply.matchAll(/^[\s*]*PDF\**:\**\s*<?(\S+?)>?[.)]*\s*$/gim)];
+export function linkFromReply(reply: string, label: string): string | null {
+  const lines = [...reply.matchAll(new RegExp(`^[\\s*]*${label}\\**:\\**\\s*<?(\\S+?)>?[.)]*\\s*$`, "gim"))];
   const link = lines.at(-1)?.[1];
   if (!link || /^none$/i.test(link)) return null;
   try {
@@ -77,6 +79,9 @@ export function reportLinkFromReply(reply: string): string | null {
     return null;
   }
 }
+
+/** The report's link on the finder's last "PDF: <link>" line. */
+export const reportLinkFromReply = (reply: string) => linkFromReply(reply, "PDF");
 
 const REPORT_WORDS = /annual\s+report|integrated\s+(?:annual\s+)?report|report\s+and\s+accounts/i;
 const squash = (s: string) =>
@@ -197,7 +202,7 @@ export const PARTNER_LEFT_OUT_REASONS: Record<PartnerLeftOutReason, string> = {
   own_foundation: "The company's own foundation or trust, which passes its CSR money on",
   government: "Government funds and bodies, such as PM CARES",
   other: "Not an NGO",
-  unconfirmed: "Not found in the report's text, so it may have been misread",
+  unconfirmed: "Not found in the text it was read from, so it may have been misread",
 };
 
 const OWN_FOUNDATION = /\b(?:foundation|trust|charitable|welfare)\b/i;

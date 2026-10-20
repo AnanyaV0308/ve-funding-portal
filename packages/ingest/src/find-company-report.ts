@@ -18,11 +18,14 @@ Search the web, and open the company's investor relations page where you need to
 Give the company's own full annual report: not a subsidiary's, a summary, a notice or a stock exchange filing. Don't use stock exchange websites. Finish with one line, "PDF: " followed by the direct link to the report's PDF, or "PDF: none" if you couldn't find it.`;
 
 export type FoundReport = { url: string | null; searches: number; model: string; inputTokens: number; outputTokens: number };
+export type WebSearch = { reply: string; searches: number; model: string; inputTokens: number; outputTokens: number };
 
-/** Asks Claude to find the report for `fy`, or the newest one published. Throws a ReadError when the API can't be used. */
-export async function findCompanyReport(company: { name: string; cin: string | null; fy: string }): Promise<FoundReport> {
-  const [start] = company.fy.split("-");
-  const ask = `Find the annual report of ${company.name}${company.cin ? ` (CIN ${company.cin})` : ""} for the financial year ${company.fy} (April ${start} to March ${Number(start) + 1}), as a PDF on the company's own website. If that year's report isn't published yet, give the newest one that is.`;
+/**
+ * Asks Claude to search the web and answer `ask`, never on the stock exchanges' websites. Gives
+ * the final reply's text, or an empty one when the search kept pausing. Throws a ReadError when
+ * the API can't be used.
+ */
+export async function searchTheWeb(system: string, ask: string): Promise<WebSearch> {
   const client = new Anthropic();
   const messages: BetaMessageParam[] = [{ role: "user", content: ask }];
   let searches = 0;
@@ -39,7 +42,7 @@ export async function findCompanyReport(company: { name: string; cin: string | n
           betas: ["server-side-fallback-2026-07-01"],
           fallbacks: "default",
           output_config: { effort: "low" },
-          system: SYSTEM,
+          system,
           tools: [
             {
               type: "web_search_20260209",
@@ -68,7 +71,15 @@ export async function findCompanyReport(company: { name: string; cin: string | n
     }
     if (message.stop_reason === "refusal") throw new ReadError("The search couldn't be done (the model declined).");
     const reply = message.content.map((b) => (b.type === "text" ? b.text : "")).join("");
-    return { url: reportLinkFromReply(reply), searches, model, inputTokens, outputTokens };
+    return { reply, searches, model, inputTokens, outputTokens };
   }
-  return { url: null, searches, model, inputTokens, outputTokens };
+  return { reply: "", searches, model, inputTokens, outputTokens };
+}
+
+/** Asks Claude to find the report for `fy`, or the newest one published. Throws a ReadError when the API can't be used. */
+export async function findCompanyReport(company: { name: string; cin: string | null; fy: string }): Promise<FoundReport> {
+  const [start] = company.fy.split("-");
+  const ask = `Find the annual report of ${company.name}${company.cin ? ` (CIN ${company.cin})` : ""} for the financial year ${company.fy} (April ${start} to March ${Number(start) + 1}), as a PDF on the company's own website. If that year's report isn't published yet, give the newest one that is.`;
+  const { reply, ...spent } = await searchTheWeb(SYSTEM, ask);
+  return { url: reportLinkFromReply(reply), ...spent };
 }
