@@ -16,7 +16,10 @@
     "report-pages": "tsx --env-file-if-exists=../../.env src/cli.ts report-pages",
     "company-reports": "tsx --env-file-if-exists=../../.env src/cli.ts company-reports",
     "company-checks": "tsx --env-file-if-exists=../../.env src/cli.ts company-checks",
-    "csr-pages": "tsx --env-file-if-exists=../../.env src/cli.ts csr-pages"
+    "csr-pages": "tsx --env-file-if-exists=../../.env src/cli.ts csr-pages",
+    "csr-plans": "tsx --env-file-if-exists=../../.env src/cli.ts csr-plans",
+    "plan-checks": "tsx --env-file-if-exists=../../.env src/cli.ts plan-checks",
+    "plan-text": "tsx --env-file-if-exists=../../.env src/cli.ts plan-text"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

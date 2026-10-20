@@ -6,9 +6,19 @@ This repository holds **Phase 1**: the knowledge base, ranked CSR leads, the pip
 
 ## What's here so far
 
+### Step 8: companies' CSR action plans
+
+- Every year a company's board approves a **CSR annual action plan** (rule 5(2) of the CSR Policy Rules): the year's projects, the Schedule VII area, where each runs, what it's allocated and who carries it out. Rule 9 has the company put the plan and its CSR policy on its website. It's the only public record of what a company is funding this year
+- **CSR leads → Companies followed** now follows the best-fitting Indian companies with a CIN, listed or not. For each, the worker looks on its website for this year's plan: monthly from April to September, when boards approve plans, then every three months until it's found. Once it has a plan it downloads it monthly and reads it again only if it changed. Annual reports are still looked for only for listed companies
+- **Where it looks**: Claude (`claude-opus-5-5`) searches the company's own website, starting from the CSR link in its annual report when the portal has one, and gives links to the plan and the CSR policy. A plan can be a PDF or a web page; a page that shows nothing without a browser needs downloading and uploading. The portal never fetches from NSE or BSE and follows robots.txt. A found document must say "action plan" and CSR and name the company, or be on a site that carries its name
+- **What it reads**: Claude lists every project with its area, states, amount, implementing agency (with its kind and CSR registration), whether it's ongoing, whether it's for people with disabilities, and its page. Plans over 40 pages are refused, since those are annual reports or policy bundles
+- **What it adds**: agencies go through the same rules as an annual report's partners (no own foundations, government funds, non-NGOs or names missing from the text) and become **NGOs it funds**, with a link to their page. A disability project counts as cause, projects in VE's states count for geography, and a budget well above the latest CSR Portal spend counts as timing. The policy is linked, not read
+- **On a company's page**: the **CSR action plan** section shows the budget, projects and where they run, the work on disability marked, and every project in a table, with **Look for its CSR action plan** and **Add a plan by hand** (a link or an uploaded PDF). Removing a plan takes away the NGOs it added
+- Finding and reading need `ANTHROPIC_API_KEY`; without it, added plans wait unread and nothing is looked for
+
 ### Step 7: companies' annual reports
 
-- **CSR leads → Company annual reports.** A listed company's annual report gives its CSR obligation, what it spent, what it moved to its Unspent CSR Account and often the NGOs that ran its projects, a year or more before the National CSR Portal. Every month, until the year's report is in, the worker looks for the newest report of the best-fitting listed companies (100 by default; admins choose up to 1,000, at an estimated ₹20 to ₹50 per company each time)
+- **CSR leads → Companies followed.** A listed company's annual report gives its CSR obligation, what it spent, what it moved to its Unspent CSR Account and often the NGOs that ran its projects, a year or more before the National CSR Portal. Every month, until the year's report is in, the worker looks for the newest report of the best-fitting listed companies (100 by default; admins choose up to 1,000, at an estimated ₹20 to ₹50 per company each time)
 - **Where it looks**: Claude (`claude-opus-5-5`) searches the company's own website with web search and gives a link to the PDF. The portal never fetches from NSE or BSE, whose terms don't allow automated collection, and it follows each site's robots.txt. A link is used only when the downloaded PDF's first pages name the company and say annual report
 - **What it reads**: from the PDF's text the portal picks the CSR pages (the CSR annexure, and pages that name CSR projects, CSR registration numbers or disability work) and sends only those, at most 24. Claude reads the figures, the CSR policy link, the partners with any amount, CSR registration and page, and the work on disability. Only the company's public report is sent, never VE's data
 - **What it adds**: the NGOs it names go on the company's **NGOs it funds**, each with a link to its page in the PDF, and count towards the fit score. The company's own foundation, government funds (such as PM CARES), organisations that aren't NGOs and names that don't appear in the report's text are left out, with the reason shown. A report's disability work counts as cause, and a budget well above the latest CSR Portal spend counts as timing
@@ -135,6 +145,19 @@ pnpm --filter @ve/ingest csr-pages <pdf url or file> "Infosys Limited"   # which
 ```
 
 Reports over 150 MB aren't downloaded. A report that couldn't be read says why, with **Try again**.
+
+## Companies' CSR action plans
+
+With `ANTHROPIC_API_KEY` in `.env`, the worker looks at two due companies' plans and reads up to two waiting plans every minute. By hand:
+
+```bash
+pnpm --filter @ve/ingest csr-plans                    # look at a few due companies' plans, then read what's waiting
+pnpm --filter @ve/ingest csr-plans "Titan Company Limited"   # look for one company's plan now
+pnpm --filter @ve/ingest plan-checks                  # look at every due company's plan
+pnpm --filter @ve/ingest plan-text <url or file> "Titan Company Limited"   # whether it passes the plan check, and its text; sends nothing
+```
+
+Plans over 30 MB aren't downloaded.
 
 ## Reminders and the weekly digest
 

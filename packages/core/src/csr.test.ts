@@ -223,6 +223,27 @@ describe("fit score", () => {
     expect(parts({ ...base, report: { ...report, obligation: 10_500_000 } }).timing!.reason).not.toMatch(/annual report/);
   });
 
+  it("counts an action plan's disability work, states and budget, ahead of the annual report", () => {
+    const plan = { fy: "2025-26", budget: 15_000_000, disabilityWork: true, states: ["Bihar", "Karnataka"] };
+    const report = { fy: "2024-25", obligation: 13_000_000, disabilityWork: true };
+    const noDisability = { ...base, sectorSpend: new Map([["Education", 6_000_000], ["Health Care", 4_000_000]]) };
+    const parts = (input: FitInput) => Object.fromEntries(fitScore(input, DEFAULT_FIT_SETTINGS).parts.map((p) => [p.part, p]));
+    const both = parts({ ...noDisability, plan, report });
+    expect(both.cause!.reason).toBe("60% of CSR spend on education and skills, and its FY 2025-26 CSR action plan includes work on disability");
+    expect(both.cause!.points).toBe(30);
+    // Only the newest budget counts, so the plan and the report don't count twice.
+    expect(both.timing!.reason).toBe(
+      "Spend up 25% in FY 2023-24, ₹20 L left unspent in FY 2023-24, FY 2025-26 CSR budget of ₹1.5 Cr is 50% above FY 2023-24 spend, per its CSR action plan",
+    );
+    // With little spend in VE states on record, the plan's project in Karnataka counts.
+    const elsewhere = parts({ ...base, stateSpend: new Map([["Maharashtra", 1_000_000]]), plan });
+    expect(elsewhere.geography!.reason).toBe("Its FY 2025-26 CSR action plan funds projects in Karnataka");
+    expect(elsewhere.geography!.points).toBe(11);
+    // When earlier spend in VE states already scores higher, that's what shows.
+    expect(parts({ ...base, plan }).geography!.reason).toBe("50% of spend in VE states (Karnataka)");
+    expect(parts({ ...base, plan: { ...plan, states: ["Bihar"] } }).geography!.points).toBe(15);
+  });
+
   it("matches peers on whole words", () => {
     expect(matchPeers(["NABARD"], ["NAB"])).toEqual([]);
     expect(matchPeers(["The NAB Karnataka branch"], ["NAB"])).toEqual(["NAB"]);

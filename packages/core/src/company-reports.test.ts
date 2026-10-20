@@ -24,7 +24,7 @@ describe("which companies, and when", () => {
     expect(dueReportFy(new Date("2027-01-15"))).toBe("2025-26");
   });
 
-  it("follows listed companies that aren't ruled out, best fit first", () => {
+  it("follows Indian companies with a CIN that aren't ruled out, best fit first", () => {
     const f = (id: string, cin: string | null, fitScore: number | null, more = {}) => ({
       id,
       name: id,
@@ -47,7 +47,7 @@ describe("which companies, and when", () => {
       ],
       3,
     );
-    expect(picked.map((p) => p.id)).toEqual(["High", "Check", "Low"]);
+    expect(picked.map((p) => p.id)).toEqual(["Unlisted", "High", "Check"]);
   });
 
   it("looks monthly until the due year's report is in", () => {

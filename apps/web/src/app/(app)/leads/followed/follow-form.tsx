@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { describedBy, Field, inputClass } from "@/components/field";
 import { type FollowFormState, saveFollowed } from "../../funders/report-actions";
 
-/** How many of the best-fitting listed companies the portal follows. */
+/** How many of the best-fitting companies the portal follows. */
 export function FollowForm({ count }: { count: number }) {
   const [state, action, pending] = useActionState<FollowFormState, FormData>(saveFollowed, null);
   return (
@@ -13,7 +13,7 @@ export function FollowForm({ count }: { count: number }) {
       <Field
         id="follow-count"
         label="Companies to follow"
-        hint={`The best-fitting listed companies, up to ${MAX_COMPANIES_FOLLOWED}. Finding and reading each year's report costs an estimated ₹20 to ₹50 per company. 0 stops the portal looking on its own.`}
+        hint={`The best-fitting companies, up to ${MAX_COMPANIES_FOLLOWED}. Finding and reading a company's CSR action plan costs an estimated ₹30 to ₹60 a year, and a listed company's annual report another ₹20 to ₹50. A company that never puts its plan online can cost up to about ₹250 a year in searches. 0 stops the portal looking on its own.`}
       >
         <input
           id="follow-count"

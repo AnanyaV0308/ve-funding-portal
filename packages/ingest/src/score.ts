@@ -1,5 +1,5 @@
-import { assessCompany } from "@ve/core";
-import { companyReports, csrBreakdown, csrYears, db, funderGrantees, funders, getFitSettings } from "@ve/db";
+import { assessCompany, planFacts } from "@ve/core";
+import { companyReports, csrBreakdown, csrPlans, csrYears, db, funderGrantees, funders, getFitSettings } from "@ve/db";
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 
 const CHUNK = 500;
@@ -15,6 +15,11 @@ function newestReport(r: { fy: string | null; obligation: number | null; disabil
   return r?.fy ? { fy: r.fy, obligation: r.obligation, disabilityWork: r.disabilityWork.length > 0 } : null;
 }
 
+/** What the fit score uses from a company's newest CSR action plan that was read. */
+function newestPlan(p: { fy: string | null; budget: number | null; projects: Parameters<typeof planFacts>[0]["projects"] } | undefined) {
+  return p?.fy ? planFacts({ fy: p.fy, budget: p.budget, projects: p.projects }) : null;
+}
+
 /**
  * Works out eligibility, grant size and fit score again for the given companies, or for every
  * company when no ids are given, and stores the results on the funder rows the leads list reads.
@@ -27,7 +32,7 @@ export async function rescoreFunders(ids?: string[]): Promise<number> {
 
   for (let i = 0; i < targets.length; i += CHUNK) {
     const chunk = targets.slice(i, i + CHUNK);
-    const [rows, years, breakdown, grantees, reports] = await Promise.all([
+    const [rows, years, breakdown, grantees, reports, plans] = await Promise.all([
       db.select().from(funders).where(inArray(funders.id, chunk)),
       db.select().from(csrYears).where(inArray(csrYears.funderId, chunk)),
       db.select().from(csrBreakdown).where(inArray(csrBreakdown.funderId, chunk)),
@@ -37,6 +42,11 @@ export async function rescoreFunders(ids?: string[]): Promise<number> {
         .from(companyReports)
         .where(and(inArray(companyReports.funderId, chunk), eq(companyReports.status, "read"), isNotNull(companyReports.fy)))
         .orderBy(desc(companyReports.fy)),
+      db
+        .select({ funderId: csrPlans.funderId, fy: csrPlans.fy, budget: csrPlans.budget, projects: csrPlans.projects })
+        .from(csrPlans)
+        .where(and(inArray(csrPlans.funderId, chunk), eq(csrPlans.status, "read"), isNotNull(csrPlans.fy)))
+        .orderBy(desc(csrPlans.fy), desc(csrPlans.foundAt)),
     ]);
     const now = new Date();
     await db.transaction(async (tx) => {
@@ -55,6 +65,7 @@ export async function rescoreFunders(ids?: string[]): Promise<number> {
             grantees: grantees.filter((g) => g.funderId === f.id),
             warmPath: Boolean(f.warmPath?.trim()),
             report: newestReport(reports.find((r) => r.funderId === f.id)),
+            plan: newestPlan(plans.find((p) => p.funderId === f.id)),
           },
           fys,
           settings,

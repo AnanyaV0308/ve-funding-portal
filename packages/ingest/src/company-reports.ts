@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { checkAnnualReport, companiesToFollow, companyCheckDue, companyReportLabel, dueReportFy, partnersToAdd } from "@ve/core";
+import { checkAnnualReport, cinIsListed, companiesToFollow, companyCheckDue, companyReportLabel, dueReportFy, partnersToAdd } from "@ve/core";
 import { companyReports, db, funderGrantees, funders, getCompaniesFollowed } from "@ve/db";
 import { and, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { readStoredBytes } from "./files";
@@ -19,7 +19,7 @@ type Report = typeof companyReports.$inferSelect;
 
 const known = (e: unknown): e is FetchError | ReadError => e instanceof FetchError || e instanceof ReadError;
 
-/** The listed companies whose reports the portal looks for: the best-fitting ones, up to the number in Settings. */
+/** The companies the portal follows: the best-fitting ones, up to the number in Settings. */
 export async function followedCompanies() {
   const limit = await getCompaniesFollowed();
   const all = await db
@@ -33,6 +33,9 @@ export async function followedCompanies() {
       reportCheckedAt: funders.reportCheckedAt,
       reportCheckRequestedAt: funders.reportCheckRequestedAt,
       reportCheckResult: funders.reportCheckResult,
+      planCheckedAt: funders.planCheckedAt,
+      planCheckRequestedAt: funders.planCheckRequestedAt,
+      planCheckResult: funders.planCheckResult,
     })
     .from(funders)
     .where(eq(funders.type, "company"));
@@ -171,14 +174,14 @@ export async function lookForReport(company: Company) {
   return message;
 }
 
-/** Companies to look for now: anyone asked for, then followed companies whose month has come round. */
+/** Companies to look for now: anyone asked for, then followed listed companies whose month has come round. */
 async function dueCompanies(today: Date): Promise<Company[]> {
   const requested = await db
     .select({ id: funders.id, name: funders.name, cin: funders.cin })
     .from(funders)
     .where(isNotNull(funders.reportCheckRequestedAt))
     .orderBy(funders.reportCheckRequestedAt);
-  const followed = await followedCompanies();
+  const followed = (await followedCompanies()).filter((f) => cinIsListed(f.cin));
   const ids = followed.map((f) => f.id);
   const fys = ids.length
     ? await db.select({ funderId: companyReports.funderId, fy: companyReports.fy }).from(companyReports).where(inArray(companyReports.funderId, ids))

@@ -405,10 +405,15 @@ export type FitInput = {
   warmPath: boolean;
   /** What the company's newest annual report says, when the portal has read one. */
   report?: AnnualReportFacts | null;
+  /** What the company's newest CSR action plan says, when the portal has read one. */
+  plan?: ActionPlanFacts | null;
 };
 
 /** From a company's own annual report: the year's CSR obligation and whether it describes work on disability. */
 export type AnnualReportFacts = { fy: string; obligation: number | null; disabilityWork: boolean };
+
+/** From a company's CSR action plan: what it allocates for the year, whether any project is on disability, and the states it funds projects in. */
+export type ActionPlanFacts = { fy: string; budget: number | null; disabilityWork: boolean; states: string[] };
 
 export type FitPartResult = { part: FitPart; weight: number; points: number; reason: string };
 export type FitResult = { score: number; parts: FitPartResult[]; summary: string };
@@ -432,8 +437,12 @@ function scorePart(part: FitPart, input: FitInput, s: FitSettings): { fraction: 
   switch (part) {
     case "cause": {
       const total = sum(input.sectorSpend);
-      // An annual report that describes work on disability counts as disability spend, since the portal's data is a year or more behind.
-      const reported = input.report?.disabilityWork ? `its ${fyLabel(input.report.fy)} annual report describes work on disability` : null;
+      // An action plan or annual report with work on disability counts as disability spend, since the portal's data is a year or more behind.
+      const reported = input.plan?.disabilityWork
+        ? `its ${fyLabel(input.plan.fy)} CSR action plan includes work on disability`
+        : input.report?.disabilityWork
+          ? `its ${fyLabel(input.report.fy)} annual report describes work on disability`
+          : null;
       if (total === 0) return reported ? { fraction: 0.4, reason: `No sector breakdown yet, but ${reported}` } : { fraction: 0, reason: "No sector breakdown yet" };
       const cause = sum(input.sectorSpend, isCauseSector);
       const disability = sum(input.sectorSpend, isDisabilitySector);
@@ -462,16 +471,22 @@ function scorePart(part: FitPart, input: FitInput, s: FitSettings): { fraction: 
     case "geography": {
       const total = sum(input.stateSpend);
       const ve = new Set(s.veStates);
+      // Projects this year's plan puts in VE's states count for most of this part, whatever earlier years show.
+      const planned = input.plan ? input.plan.states.filter((st) => ve.has(st)) : [];
+      const fromPlan = planned.length
+        ? { fraction: 0.75, reason: `Its ${fyLabel(input.plan!.fy)} CSR action plan funds projects in ${listNames(planned)}` }
+        : null;
+      const best = (r: { fraction: number; reason: string }) => (fromPlan && fromPlan.fraction > r.fraction ? fromPlan : r);
       if (total > 0) {
         const inVe = sum(input.stateSpend, (k) => ve.has(k));
         const pan = input.stateSpend.get(PAN_INDIA) ?? 0;
         const fraction = clamp01((inVe + 0.5 * pan) / total / 0.5);
-        if (inVe === 0) return { fraction, reason: pan > 0 ? `${pct(pan / total)} spent Pan India, none in VE states` : "No spend in VE states" };
+        if (inVe === 0) return best({ fraction, reason: pan > 0 ? `${pct(pan / total)} spent Pan India, none in VE states` : "No spend in VE states" });
         const top = [...input.stateSpend].filter(([k]) => ve.has(k)).sort((a, b) => b[1] - a[1]).map(([k]) => k);
-        return { fraction, reason: `${pct(inVe / total)} of spend in VE states (${listNames(top)})` };
+        return best({ fraction, reason: `${pct(inVe / total)} of spend in VE states (${listNames(top)})` });
       }
-      if (input.hqState && ve.has(input.hqState)) return { fraction: 0.5, reason: `Registered in ${input.hqState}, a VE state` };
-      return { fraction: 0, reason: "No spend in VE states recorded" };
+      if (input.hqState && ve.has(input.hqState)) return best({ fraction: 0.5, reason: `Registered in ${input.hqState}, a VE state` });
+      return best({ fraction: 0, reason: "No spend in VE states recorded" });
     }
     case "warmPath":
       return input.warmPath ? { fraction: 1, reason: "Someone at VE has a way in" } : { fraction: 0, reason: "No warm path recorded yet" };
@@ -484,10 +499,14 @@ function scorePart(part: FitPart, input: FitInput, s: FitSettings): { fraction: 
       if (latest && latest.prescribed !== null && latest.prescribed > latest.spent) {
         signals.push(`${formatInrShort(latest.prescribed - latest.spent)} left unspent in ${fyLabel(latest.fy)}`);
       }
-      // A newer year's obligation from the annual report says whether there's more to give this year.
-      const r = input.report;
-      if (r && r.obligation !== null && latest && r.fy > latest.fy && latest.spent > 0 && r.obligation >= latest.spent * 1.1) {
-        signals.push(`${fyLabel(r.fy)} CSR budget of ${formatInrShort(r.obligation)} is ${pct(r.obligation / latest.spent - 1)} above ${fyLabel(latest.fy)} spend, per its annual report`);
+      // A newer year's budget, from the action plan or else the annual report, says whether there's more to give this year.
+      const budgets = [
+        input.plan?.budget != null ? { fy: input.plan.fy, amount: input.plan.budget, from: "its CSR action plan" } : null,
+        input.report?.obligation != null ? { fy: input.report.fy, amount: input.report.obligation, from: "its annual report" } : null,
+      ].filter((b) => b !== null);
+      const b = budgets.sort((x, y) => y.fy.localeCompare(x.fy))[0];
+      if (b && latest && b.fy > latest.fy && latest.spent > 0 && b.amount >= latest.spent * 1.1) {
+        signals.push(`${fyLabel(b.fy)} CSR budget of ${formatInrShort(b.amount)} is ${pct(b.amount / latest.spent - 1)} above ${fyLabel(latest.fy)} spend, per ${b.from}`);
       }
       if (!signals.length) return { fraction: 0, reason: "No timing signals" };
       const text = signals.join(", ");
@@ -515,6 +534,7 @@ export function assessCompany(
     grantees: { name: string; amount: number | null }[];
     warmPath: boolean;
     report?: AnnualReportFacts | null;
+    plan?: ActionPlanFacts | null;
   },
   recentFys: string[],
   settings: FitSettings,
@@ -539,6 +559,7 @@ export function assessCompany(
       ticket: ticket.amount,
       warmPath: facts.warmPath,
       report: facts.report ?? null,
+      plan: facts.plan ?? null,
     },
     settings,
   );

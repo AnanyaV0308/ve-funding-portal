@@ -152,11 +152,11 @@ export function AnnualReportSection({
       <p className="text-sm text-ve-muted">
         What the company&apos;s own annual report says about its CSR, often a year ahead of the National CSR Portal. The NGOs it names count towards the fit
         score.{" "}
-        {followed
-          ? "The portal looks for it on the company's website every month until the year's report is in."
-          : listed
-            ? `The portal looks for the reports of the ${followedCount} best-fitting listed companies on its own, and this one isn't among them.`
-            : "The portal looks only for listed companies' reports on its own, so add this one's by hand."}
+        {!listed
+          ? "The portal looks only for listed companies' reports on its own, so add this one's by hand."
+          : followed
+            ? "The portal looks for it on the company's website every month until the year's report is in."
+            : `The portal looks for the reports of the ${followedCount} best-fitting companies on its own, and this one isn't among them.`}
       </p>
 
       {newest ? <ReadReport report={newest} added={addedByReport.get(newest.id) ?? 0} /> : null}

@@ -2,7 +2,7 @@
  * Background worker. Runs scheduled and slow jobs (imports, scoring, reminders, digests) from a
  * pg-boss queue that lives in the same Postgres as the app.
  */
-import { runCompanyReports, runPeerReports, runPending } from "@ve/ingest";
+import { runCompanyReports, runCsrPlans, runPeerReports, runPending } from "@ve/ingest";
 import { runDigest, runReminders } from "@ve/notify";
 import { PgBoss } from "pg-boss";
 
@@ -47,6 +47,16 @@ await boss.createQueue(COMPANY_REPORTS, { policy: "singleton" });
 await boss.schedule(COMPANY_REPORTS, "* * * * *", {}, { tz: "Asia/Kolkata" });
 await boss.work(COMPANY_REPORTS, async () => {
   await runCompanyReports((m) => console.log(`[worker] ${m}`));
+});
+
+// Followed companies' CSR action plans: looked for on their websites monthly until this year's
+// plan is in, then downloaded monthly to catch revisions, and read a few at a time, along with any
+// someone gave a link to or uploaded. Finding and reading need ANTHROPIC_API_KEY.
+const CSR_PLANS = "csr-plans";
+await boss.createQueue(CSR_PLANS, { policy: "singleton" });
+await boss.schedule(CSR_PLANS, "* * * * *", {}, { tz: "Asia/Kolkata" });
+await boss.work(CSR_PLANS, async () => {
+  await runCsrPlans((m) => console.log(`[worker] ${m}`));
 });
 
 // Award and grant deadline reminders every morning, and the weekly digest on Monday mornings.

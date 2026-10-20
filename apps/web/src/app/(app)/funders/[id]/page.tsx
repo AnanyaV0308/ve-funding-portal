@@ -1,15 +1,5 @@
-import {
-  can,
-  cinIsListed,
-  cinState,
-  FIT_PART_LABELS,
-  FUNDER_TYPE_LABELS,
-  formatInrShort,
-  fyLabel,
-  sortFysDesc,
-  stageLabel,
-} from "@ve/core";
-import { companyReports, csrBreakdown, csrYears, db, funderGrantees, funders, pursuits } from "@ve/db";
+import { can, cinIsListed, cinState, FIT_PART_LABELS, FUNDER_TYPE_LABELS, formatInrShort, fyLabel, sortFysDesc, stageLabel } from "@ve/core";
+import { companyReports, csrBreakdown, csrPlans, csrYears, db, funderGrantees, funders, pursuits } from "@ve/db";
 import { followedCompanies, readerConfigured } from "@ve/ingest";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import Link from "next/link";
@@ -20,6 +10,7 @@ import { requireUser } from "@/lib/authz";
 import { formatDate } from "@/lib/format";
 import { deleteGrantee } from "../actions";
 import { AnnualReportSection } from "./annual-report";
+import { CsrPlanSection } from "./csr-plan";
 import { GranteeForm, NotesForm } from "./forms";
 
 type Params = { id: string };
@@ -36,6 +27,7 @@ async function load(id: string) {
       pursuits: { orderBy: desc(pursuits.updatedAt), columns: { id: true, title: true, stage: true } },
       // Newest year first; a report not read yet, with no year, comes after the read ones.
       companyReports: { orderBy: [sql`${companyReports.fy} desc nulls last`, desc(companyReports.foundAt)] },
+      csrPlans: { orderBy: [sql`${csrPlans.fy} desc nulls last`, desc(csrPlans.foundAt)] },
     },
   });
 }
@@ -58,8 +50,15 @@ export default async function FunderPage({ params }: { params: Promise<Params> }
   const split = (kind: "sector" | "state") => f.csrBreakdown.filter((b) => b.fy === latest && b.kind === kind).slice(0, 8);
   const state = cinState(f.cin);
   const followed = f.type === "company" ? await followedCompanies() : [];
+  const isFollowed = followed.some((c) => c.id === f.id);
   const addedByReport = new Map<string, number>();
-  for (const g of f.grantees) if (g.companyReportId) addedByReport.set(g.companyReportId, (addedByReport.get(g.companyReportId) ?? 0) + 1);
+  const addedByPlan = new Map<string, number>();
+  for (const g of f.grantees) {
+    if (g.companyReportId) addedByReport.set(g.companyReportId, (addedByReport.get(g.companyReportId) ?? 0) + 1);
+    if (g.csrPlanId) addedByPlan.set(g.csrPlanId, (addedByPlan.get(g.csrPlanId) ?? 0) + 1);
+  }
+  const policyUrl =
+    f.csrPlans.find((p) => p.status === "read" && p.policyUrl)?.policyUrl ?? f.csrPolicyUrl ?? f.companyReports.find((r) => r.policyUrl)?.policyUrl ?? null;
 
   return (
     <>
@@ -113,7 +112,9 @@ export default async function FunderPage({ params }: { params: Promise<Params> }
               <li key={r}>{r}</li>
             ))}
           </ul>
-          <p className="text-sm text-ve-muted">Checked by tested rules: an Indian entity with a CIN, CSR reported in the last two years, and above VE's floor.</p>
+          <p className="text-sm text-ve-muted">
+            Checked by tested rules: an Indian entity with a CIN, CSR reported in the last two years, and above VE's floor.
+          </p>
         </section>
 
         <section aria-labelledby="fit-heading" className="grid content-start gap-3 rounded-lg border border-ve-line bg-white p-5">
@@ -131,9 +132,15 @@ export default async function FunderPage({ params }: { params: Promise<Params> }
               <caption className="sr-only">How the fit score adds up</caption>
               <thead>
                 <tr className="border-b border-ve-line">
-                  <th scope="col" className="label py-2 pr-3 text-xs text-ve-muted">Part</th>
-                  <th scope="col" className="label py-2 pr-3 text-right text-xs text-ve-muted">Points</th>
-                  <th scope="col" className="label py-2 text-xs text-ve-muted">Why</th>
+                  <th scope="col" className="label py-2 pr-3 text-xs text-ve-muted">
+                    Part
+                  </th>
+                  <th scope="col" className="label py-2 pr-3 text-right text-xs text-ve-muted">
+                    Points
+                  </th>
+                  <th scope="col" className="label py-2 text-xs text-ve-muted">
+                    Why
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -171,18 +178,32 @@ export default async function FunderPage({ params }: { params: Promise<Params> }
               <caption className="sr-only">CSR spend by financial year, newest first</caption>
               <thead className="bg-ve-cream">
                 <tr>
-                  <th scope="col" className="label px-3 py-2 text-xs text-ve-muted">Year</th>
-                  <th scope="col" className="label px-3 py-2 text-right text-xs text-ve-muted">Obligation</th>
-                  <th scope="col" className="label px-3 py-2 text-right text-xs text-ve-muted">Spent</th>
-                  <th scope="col" className="label px-3 py-2 text-right text-xs text-ve-muted">Projects</th>
-                  <th scope="col" className="label px-3 py-2 text-xs text-ve-muted">Source</th>
+                  <th scope="col" className="label px-3 py-2 text-xs text-ve-muted">
+                    Year
+                  </th>
+                  <th scope="col" className="label px-3 py-2 text-right text-xs text-ve-muted">
+                    Obligation
+                  </th>
+                  <th scope="col" className="label px-3 py-2 text-right text-xs text-ve-muted">
+                    Spent
+                  </th>
+                  <th scope="col" className="label px-3 py-2 text-right text-xs text-ve-muted">
+                    Projects
+                  </th>
+                  <th scope="col" className="label px-3 py-2 text-xs text-ve-muted">
+                    Source
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {f.csrYears.map((y) => (
                   <tr key={y.id} className="border-t border-ve-line">
-                    <th scope="row" className="px-3 py-2 font-medium">{fyLabel(y.fy)}</th>
-                    <td className="px-3 py-2 text-right">{y.prescribed !== null ? formatInrShort(y.prescribed) : <span className="text-ve-muted">Not given</span>}</td>
+                    <th scope="row" className="px-3 py-2 font-medium">
+                      {fyLabel(y.fy)}
+                    </th>
+                    <td className="px-3 py-2 text-right">
+                      {y.prescribed !== null ? formatInrShort(y.prescribed) : <span className="text-ve-muted">Not given</span>}
+                    </td>
                     <td className="px-3 py-2 text-right">{formatInrShort(y.spent) || "₹0"}</td>
                     <td className="px-3 py-2 text-right">{y.projectCount}</td>
                     <td className="px-3 py-2 text-ve-muted">
@@ -228,15 +249,27 @@ export default async function FunderPage({ params }: { params: Promise<Params> }
       </section>
 
       {f.type === "company" ? (
-        <AnnualReportSection
-          funder={f}
-          reports={f.companyReports}
-          addedByReport={addedByReport}
-          followed={followed.some((c) => c.id === f.id)}
-          followedCount={followed.length}
-          readerReady={readerConfigured()}
-          canEdit={canEdit}
-        />
+        <>
+          <AnnualReportSection
+            funder={f}
+            reports={f.companyReports}
+            addedByReport={addedByReport}
+            followed={isFollowed}
+            followedCount={followed.length}
+            readerReady={readerConfigured()}
+            canEdit={canEdit}
+          />
+          <CsrPlanSection
+            funder={f}
+            plans={f.csrPlans}
+            addedByPlan={addedByPlan}
+            policyUrl={policyUrl}
+            followed={isFollowed}
+            followedCount={followed.length}
+            readerReady={readerConfigured()}
+            canEdit={canEdit}
+          />
+        </>
       ) : null}
 
       <div className="grid gap-8 lg:grid-cols-2">
@@ -245,7 +278,8 @@ export default async function FunderPage({ params }: { params: Promise<Params> }
             NGOs it funds
           </h2>
           <p className="text-sm text-ve-muted">
-            From annual report CSR annexures or what VE knows. Peer NGOs on this list raise the fit score. Settings holds the peer list.
+            From companies&apos; annual reports and CSR action plans, peer NGOs&apos; donor lists, or what VE knows. Peer NGOs on this list raise the fit score.
+            Settings holds the peer list.
           </p>
           {f.grantees.length ? (
             <ul className="grid gap-2">
